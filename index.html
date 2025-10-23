@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gemini GPT Clone</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              'gpt-dark': '#202123',
+              'gpt-gray': '#343541',
+              'gpt-light-gray': '#444654',
+              'gpt-green': '#10A37F',
+              'whatsapp-dark-bg': '#0b141a',
+              'whatsapp-dark-bubble-ai': '#202c33',
+              'whatsapp-dark-bubble-user': '#005c4b',
+              'whatsapp-light-bg': '#e5ddd5',
+              'whatsapp-light-bubble-ai': '#ffffff',
+              'whatsapp-light-bubble-user': '#d9fdd3',
+            },
+            animation: {
+              'fade-in': 'fadeIn 0.5s ease-in-out',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: 0 },
+                '100%': { opacity: 1 },
+              },
+            }
+          }
+        }
+      }
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.26.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "uuid": "https://aistudiocdn.com/uuid@^13.0.0",
+    "react-markdown": "https://esm.sh/react-markdown@8.0.7",
+    "remark-gfm": "https://esm.sh/remark-gfm@3.0.1"
+  }
+}
+</script>
+</head>
+  <body class="bg-whatsapp-light-bg dark:bg-whatsapp-dark-bg">
+    <div id="root"></div>
+  </body>
+</html>

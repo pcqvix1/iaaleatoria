@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { type Chat } from '@google/genai';
 import { Sidebar } from './components/Sidebar';
 import { ChatView } from './components/ChatView';
 import { sendMessageStream } from './services/geminiService';
@@ -13,7 +14,7 @@ const App: React.FC = () => {
   const [currentConversationId, setCurrentConversationId] = useLocalStorage<string | null>('currentConversationId', null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isTyping, setIsTyping] = useState(false);
-  const chat = useRef<any | null>(null);
+  const chat = useRef<Chat | null>(null);
 
   useEffect(() => {
     if (theme === 'dark') {

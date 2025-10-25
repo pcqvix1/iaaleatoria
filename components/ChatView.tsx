@@ -6,9 +6,11 @@ import { ChatInput } from './ChatInput';
 interface ChatViewProps {
   conversation: Conversation | undefined;
   onSendMessage: (input: string) => void;
+  isTyping: boolean;
+  onStopGenerating: () => void;
 }
 
-export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage }) => {
+export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage, isTyping, onStopGenerating }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -19,10 +21,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage 
     scrollToBottom();
   }, [conversation?.messages]);
 
-  const isTyping = conversation?.messages[conversation.messages.length - 1]?.role === 'model' && conversation?.messages[conversation.messages.length - 1]?.content === '';
-
   return (
-    <div className="flex-1 flex flex-col bg-transparent">
+    <div className="flex-1 flex flex-col bg-transparent overflow-hidden">
       <header className="w-full p-2 text-center text-sm text-gray-600 dark:text-gray-400 border-b border-gray-300 dark:border-gray-700/50 flex-shrink-0">
         feito por Pedro Campos Queiroz
       </header>
@@ -38,9 +38,9 @@ export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage 
           <div ref={messagesEndRef} />
         </div>
       </div>
-      <div className="w-full p-4 md:p-6 bg-transparent">
+      <div className="w-full p-4 md:p-6 bg-transparent flex-shrink-0">
         <div className="max-w-4xl mx-auto">
-          <ChatInput onSendMessage={onSendMessage} disabled={isTyping} />
+          <ChatInput onSendMessage={onSendMessage} isGenerating={isTyping} onStopGenerating={onStopGenerating} />
         </div>
       </div>
     </div>

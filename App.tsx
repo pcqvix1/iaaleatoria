@@ -1,12 +1,12 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { type Chat } from '@google/genai';
 import { Sidebar } from './components/Sidebar';
 import { ChatView } from './components/ChatView';
-import { sendMessageStream } from './services/geminiService';
+import { generateStream, generateConversationTitle } from './services/geminiService';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { MenuIcon } from './components/Icons';
-import { type Conversation, type Message, type Theme } from './types';
+import { type Conversation, type Message, type Theme, GroundingChunk } from './types';
 
 const App: React.FC = () => {
   const [theme, setTheme] = useLocalStorage<Theme>('theme', 'dark');
@@ -14,7 +14,7 @@ const App: React.FC = () => {
   const [currentConversationId, setCurrentConversationId] = useLocalStorage<string | null>('currentConversationId', null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isTyping, setIsTyping] = useState(false);
-  const chat = useRef<Chat | null>(null);
+  const stopGenerationRef = useRef(false);
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -44,7 +44,7 @@ const App: React.FC = () => {
   const currentConversation = conversations.find(c => c.id === currentConversationId);
 
   const startNewConversation = () => {
-    chat.current = null;
+    stopGenerationRef.current = true;
     const newId = uuidv4();
     const newConversation: Conversation = {
       id: newId,
@@ -60,7 +60,7 @@ const App: React.FC = () => {
     if (!input.trim() || !currentConversationId) return;
 
     const userMessage: Message = { id: uuidv4(), role: 'user', content: input };
-    const aiMessage: Message = { id: uuidv4(), role: 'model', content: '' };
+    const aiMessage: Message = { id: uuidv4(), role: 'model', content: '', groundingChunks: [] };
 
     const conversationHistory = conversations.find(c => c.id === currentConversationId)?.messages ?? [];
 
@@ -69,17 +69,19 @@ const App: React.FC = () => {
         ? { ...c, messages: [...c.messages, userMessage, aiMessage] }
         : c
     ));
+    stopGenerationRef.current = false;
     setIsTyping(true);
 
     try {
-      if (!chat.current) {
-        chat.current = await sendMessageStream(conversationHistory);
-      }
-      
-      const responseStream = await chat.current.sendMessageStream({ message: input });
+      const responseStream = await generateStream(conversationHistory, input);
 
       let fullResponse = '';
+      const allChunks = [];
       for await (const chunk of responseStream) {
+        if (stopGenerationRef.current) {
+          break;
+        }
+        allChunks.push(chunk);
         const chunkText = chunk.text;
         fullResponse += chunkText;
         setConversations(prev => prev.map(c => 
@@ -88,21 +90,58 @@ const App: React.FC = () => {
             : c
         ));
       }
-
-      setConversations(prev => prev.map(c => {
-        if (c.id === currentConversationId) {
-          let title = c.title;
-          if (c.title === 'Nova Conversa' && c.messages.length > 0) {
-            const firstUserMessage = c.messages.find(m => m.role === 'user' && m.content.length > 0);
-            if (firstUserMessage) {
-                title = firstUserMessage.content.substring(0, 30);
-            }
-          }
-          return { ...c, title };
+      
+      const groundingChunks = allChunks
+        .flatMap(chunk => chunk.candidates?.[0]?.groundingMetadata?.groundingChunks || [])
+        .filter((chunk): chunk is GroundingChunk => !!(chunk.web && chunk.web.uri && chunk.web.title));
+      
+      const uniqueGroundingChunks = Array.from(new Map(groundingChunks.map(item => [item.web.uri, item])).values());
+      
+      if (uniqueGroundingChunks.length > 0) {
+        setConversations(prev => prev.map(c => 
+          c.id === currentConversationId 
+            ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, groundingChunks: uniqueGroundingChunks } : m) }
+            : c
+        ));
+      }
+      
+      if (stopGenerationRef.current) {
+        if (fullResponse.length === 0) {
+          // Stopped before any content was received
+          setConversations(prev => prev.map(c => 
+            c.id === currentConversationId 
+              ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: 'Essa mensagem foi interrompida' } : m) }
+              : c
+          ));
+        } else {
+          // Stopped after partial content was received
+          const interruptionMessage: Message = { id: uuidv4(), role: 'model', content: 'Essa mensagem foi interrompida' };
+          setConversations(prev => prev.map(c => 
+            c.id === currentConversationId 
+              ? { ...c, messages: [...c.messages, interruptionMessage] }
+              : c
+          ));
         }
-        return c;
-      }));
+      } else {
+        // Generation completed normally. Check if a title needs to be generated.
+        const isFirstExchange = conversationHistory.length === 0;
+        
+        if (isFirstExchange) {
+          const titleContextMessages: Message[] = [
+            userMessage,
+            { ...aiMessage, content: fullResponse }
+          ];
 
+          // Generate title in the background, don't block the UI
+          generateConversationTitle(titleContextMessages).then(newTitle => {
+            if (newTitle) {
+              setConversations(prev => prev.map(c =>
+                c.id === currentConversationId ? { ...c, title: newTitle } : c
+              ));
+            }
+          });
+        }
+      }
 
     } catch (error) {
       console.error("Gemini API error:", error);
@@ -117,6 +156,10 @@ const App: React.FC = () => {
     }
   };
   
+  const handleStopGenerating = () => {
+    stopGenerationRef.current = true;
+  };
+
   useEffect(() => {
     if (!currentConversationId && conversations.length > 0) {
       setCurrentConversationId(conversations[0].id);
@@ -128,18 +171,18 @@ const App: React.FC = () => {
 
 
   const selectConversation = (id: string) => {
-    chat.current = null;
+    stopGenerationRef.current = true;
     setCurrentConversationId(id);
   };
   
   const clearHistory = () => {
+    stopGenerationRef.current = true;
     setConversations([]);
     setCurrentConversationId(null);
-    chat.current = null;
   };
 
   return (
-    <div className="flex h-screen w-screen bg-whatsapp-light-bg dark:bg-whatsapp-dark-bg text-black dark:text-white overflow-hidden">
+    <div className="flex h-screen w-full bg-whatsapp-light-bg dark:bg-whatsapp-dark-bg text-black dark:text-white overflow-hidden">
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
@@ -161,6 +204,8 @@ const App: React.FC = () => {
         <ChatView 
           conversation={currentConversation}
           onSendMessage={handleSendMessage}
+          isTyping={isTyping}
+          onStopGenerating={handleStopGenerating}
         />
       </div>
     </div>

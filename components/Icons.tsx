@@ -45,3 +45,7 @@ export const StopIcon = () => (
         <rect x="6" y="6" width="12" height="12" rx="1" />
     </svg>
 );
+
+export const SearchIcon = () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-inherit"><path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm10 2-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"></path></svg>
+);

@@ -1,6 +1,7 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import { type Conversation, type Theme } from '../types';
-import { PlusIcon, ChatIcon, TrashIcon, SunIcon, MoonIcon, UserIcon, SettingsIcon, CloseIcon } from './Icons';
+import { PlusIcon, ChatIcon, TrashIcon, SunIcon, MoonIcon, MenuIcon, SearchIcon } from './Icons';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -25,6 +26,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   theme,
   onToggleTheme,
 }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredConversations = conversations.filter(convo => {
+    const lowercasedSearchTerm = searchTerm.toLowerCase().trim();
+    if (!lowercasedSearchTerm) {
+      return true;
+    }
+    return convo.messages.some(message =>
+      message.content.toLowerCase().includes(lowercasedSearchTerm)
+    );
+  });
+
   return (
     <>
       <div 
@@ -32,7 +45,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onClick={onClose}
       ></div>
       <aside className={`absolute md:relative flex flex-col h-full w-64 bg-gray-50 dark:bg-gpt-dark text-gray-800 dark:text-gray-200 z-40 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out`}>
-        <div className="p-2 flex-shrink-0">
+        <div className="p-2 flex items-center gap-2 flex-shrink-0">
+          <button
+              onClick={onClose}
+              className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gpt-light-gray"
+              aria-label="Fechar barra lateral"
+          >
+              <MenuIcon />
+          </button>
+          <div className="relative text-gray-500 dark:text-gray-400 flex-1">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <SearchIcon />
+              </div>
+              <input
+                  type="text"
+                  placeholder="Pesquisar..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-gray-200 dark:bg-gpt-light-gray border border-transparent rounded-md pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-500"
+                  aria-label="Pesquisar conversas"
+              />
+          </div>
+        </div>
+        
+        <div className="p-2 flex-shrink-0 border-b border-gray-200 dark:border-gray-700/50 mb-2">
           <button
             onClick={onNewChat}
             className="w-full flex items-center gap-3 px-3 py-3 rounded-md text-sm hover:bg-gray-200 dark:hover:bg-gpt-light-gray transition-colors duration-200"
@@ -41,10 +77,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             Nova Conversa
           </button>
         </div>
-        
+
         <nav className="flex-1 overflow-y-auto px-2">
           <ul className="space-y-1">
-            {conversations.map(convo => (
+            {filteredConversations.map(convo => (
               <li key={convo.id}>
                 <a
                   href="#"
@@ -73,9 +109,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={onToggleTheme} 
           />
         </div>
-        <button onClick={onClose} className="absolute top-2 right-2 md:hidden p-1 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white">
-          <CloseIcon />
-        </button>
       </aside>
     </>
   );

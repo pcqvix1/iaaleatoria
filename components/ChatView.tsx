@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef } from 'react';
 import { type Conversation, type Message } from '../types';
 import { MessageBubble } from './Message';
@@ -23,7 +24,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage,
 
   return (
     <div className="flex-1 flex flex-col bg-transparent overflow-hidden">
-      <header className="w-full p-2 text-center text-sm text-gray-600 dark:text-gray-400 border-b border-gray-300 dark:border-gray-700/50 flex-shrink-0">
+      <header className="relative w-full p-2 text-center text-sm text-gray-600 dark:text-gray-400 border-b border-gray-300 dark:border-gray-700/50 flex-shrink-0">
         feito por Pedro Campos Queiroz
       </header>
       <div className="flex-1 overflow-y-auto p-4 md:p-6">

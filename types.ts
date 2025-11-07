@@ -20,6 +20,7 @@ export interface Conversation {
   title: string;
   messages: Message[];
   createdAt: number;
+  isTyping?: boolean;
 }
 
 export type Theme = 'light' | 'dark';

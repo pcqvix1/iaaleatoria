@@ -83,14 +83,21 @@ export async function editImage(prompt: string, image: ImagePart): Promise<Image
     },
   });
 
-  const editedImagePart = response.candidates?.[0]?.content?.parts?.find(part => part.inlineData);
+  const candidate = response.candidates?.[0];
+  if (candidate?.finishReason && candidate.finishReason !== 'STOP') {
+      throw new Error(`A edição da imagem falhou. Motivo: ${candidate.finishReason}`);
+  }
+
+  const editedImagePart = candidate?.content?.parts?.find(part => part.inlineData);
   if (editedImagePart?.inlineData) {
     return {
       base64: editedImagePart.inlineData.data,
-      mimeType: editedImagePart.inlineData.mimeType || 'image/png', // Default to png if not provided
+      mimeType: editedImagePart.inlineData.mimeType || 'image/png',
     };
   }
-  throw new Error('Não foi possível editar a imagem.');
+  
+  console.error('Falha na edição de imagem, resposta da API:', JSON.stringify(response, null, 2));
+  throw new Error('Não foi possível editar a imagem. A resposta da API não continha uma imagem.');
 }
 
 // Function for image generation
@@ -113,7 +120,11 @@ export async function generateImage(prompt: string, aspectRatio: AspectRatio): P
       mimeType: generatedImage.image.mimeType || 'image/png',
     };
   }
-  throw new Error('Não foi possível gerar a imagem.');
+  
+  console.error('Falha na geração de imagem, resposta da API:', JSON.stringify(response, null, 2));
+  // The generateImages response does not provide a structured `finishReason`. 
+  // We throw a generic but informative error after logging the response.
+  throw new Error('Não foi possível gerar a imagem. Verifique se o seu prompt está de acordo com as políticas de segurança.');
 }
 
 
@@ -126,21 +137,34 @@ export async function generateConversationTitle(
     .map(msg => `${msg.role === 'user' ? 'Usuário' : 'Assistente'}: ${msg.content}`)
     .join('\n\n');
     
-  const prompt = `Gere um título curto e conciso (máximo 5 palavras) em português para a seguinte conversa. Responda APENAS com o título.
+  const prompt = `Analise a seguinte conversa e crie um título curto e descritivo em português, com no máximo 5 palavras. O título deve capturar a essência do assunto. Não adicione aspas nem pontuação final.
 
-${context}`;
+Conversa:
+---
+${context}
+---
+
+Título Sugerido:`;
 
   try {
     const response = await ai.models.generateContent({
       model: chatModel,
       contents: prompt,
+      config: {
+        systemInstruction: 'Você é um assistente especializado em criar títulos concisos e relevantes para conversas. Sua única tarefa é fornecer o título solicitado, sem nenhum texto adicional.',
+        temperature: 0.2,
+      },
     });
-    // Clean up the title by removing quotes and trailing periods.
-    const title = response.text.trim().replace(/^"|"$/g, '').replace(/\.$/, '');
+
+    let title = response.text.trim();
+    // Remove potential prefixes like "Título:", "Title:", etc., case-insensitively
+    title = title.replace(/^(título|title):?\s*/i, '');
+    // Remove quotes and trailing punctuation.
+    title = title.replace(/^"|"$|^\s*['`]|['`]\s*$/g, '').replace(/[.,!?;:]$/, '').trim();
+
     return title || "Nova Conversa";
   } catch (error) {
     console.error("Error generating title:", error);
-    // Return a fallback title in case of an error.
-    return "Conversa sem título";
+    return "Conversa";
   }
 }

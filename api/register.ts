@@ -1,27 +1,28 @@
 
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-// A Vercel usa uma API similar à do Next.js para as funções serverless
-export async function POST(request: Request) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', ['POST']);
+    return res.status(405).end('Method Not Allowed');
+  }
+
   try {
-    // 1. Pega os dados enviados pelo frontend
-    const { name, email, password } = await request.json();
+    const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
-      return new Response(JSON.stringify({ message: 'Nome, e-mail e senha são obrigatórios.' }), { status: 400 });
+      return res.status(400).json({ message: 'Nome, e-mail e senha são obrigatórios.' });
     }
 
-    // 2. Verifica se o usuário já existe
     const { rows: existingUsers } = await sql`SELECT * FROM users WHERE email = ${email};`;
     if (existingUsers.length > 0) {
-      return new Response(JSON.stringify({ message: 'Este e-mail já está em uso.' }), { status: 409 });
+      return res.status(409).json({ message: 'Este e-mail já está em uso.' });
     }
 
-    // 3. Criptografa a senha
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 4. Insere o novo usuário no banco de dados
     const { rows } = await sql`
       INSERT INTO users (name, email, password)
       VALUES (${name}, ${email}, ${hashedPassword})
@@ -30,14 +31,10 @@ export async function POST(request: Request) {
     
     const newUser = rows[0];
 
-    // 5. Retorna o usuário criado (sem a senha!)
-    return new Response(JSON.stringify(newUser), { 
-      status: 201,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return res.status(201).json(newUser);
 
   } catch (error) {
     console.error('Register error:', error);
-    return new Response(JSON.stringify({ message: 'Ocorreu um erro no servidor.' }), { status: 500 });
+    return res.status(500).json({ message: 'Ocorreu um erro no servidor.' });
   }
 }

@@ -1,44 +1,44 @@
 
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-export async function POST(request: Request) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', ['POST']);
+    return res.status(405).end('Method Not Allowed');
+  }
+
   try {
-    const { email, password } = await request.json();
+    const { email, password } = req.body;
 
     if (!email || !password) {
-      return new Response(JSON.stringify({ message: 'E-mail e senha são obrigatórios.' }), { status: 400 });
+      return res.status(400).json({ message: 'E-mail e senha são obrigatórios.' });
     }
 
-    // 1. Encontra o usuário pelo e-mail
     const { rows } = await sql`SELECT * FROM users WHERE email = ${email};`;
     const user = rows[0];
 
     if (!user) {
-      return new Response(JSON.stringify({ message: 'E-mail ou senha inválidos.' }), { status: 401 });
+      return res.status(401).json({ message: 'E-mail ou senha inválidos.' });
     }
 
-    // 2. Compara a senha enviada com a senha criptografada no banco
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      return new Response(JSON.stringify({ message: 'E-mail ou senha inválidos.' }), { status: 401 });
+      return res.status(401).json({ message: 'E-mail ou senha inválidos.' });
     }
 
-    // 3. Retorna os dados do usuário (sem a senha!)
     const userToReturn = {
       id: user.id,
       name: user.name,
       email: user.email,
     };
 
-    return new Response(JSON.stringify(userToReturn), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return res.status(200).json(userToReturn);
 
   } catch (error) {
     console.error('Login error:', error);
-    return new Response(JSON.stringify({ message: 'Ocorreu um erro no servidor.' }), { status: 500 });
+    return res.status(500).json({ message: 'Ocorreu um erro no servidor.' });
   }
 }

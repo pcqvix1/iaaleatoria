@@ -18,6 +18,9 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const stopGenerationRef = useRef(false);
+  // FIX: Explicitly type the ref to hold a number or undefined to fix a TypeScript error
+  // where useRef<number>() was being called without an initial value.
+  const saveTimeoutRef = useRef<number | undefined>();
 
   useEffect(() => {
     const user = authService.getCurrentUser();
@@ -59,15 +62,34 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const updateAndSaveConversations = (newConversations: Conversation[] | ((prevState: Conversation[]) => Conversation[])) => {
-    setConversations(prevConversations => {
-        const updated = typeof newConversations === 'function' ? newConversations(prevConversations) : newConversations;
-        if (currentUser) {
-            authService.saveUserConversations(currentUser.id, updated);
-        }
-        return updated;
-    });
+  // Debounced effect for saving conversations
+  useEffect(() => {
+    if (isLoading || !currentUser) {
+      return;
+    }
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = window.setTimeout(() => {
+      authService.saveUserConversations(currentUser.id, conversations);
+    }, 1500); // Save after 1.5 seconds of inactivity
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [conversations, currentUser, isLoading]);
+
+
+  const updateAndSaveConversations = (updater: React.SetStateAction<Conversation[]>) => {
+    // This function now only updates the local state.
+    // The debounced useEffect handles saving to the backend.
+    setConversations(updater);
   };
+
 
   const currentConversation = conversations.find(c => c.id === currentConversationId);
 

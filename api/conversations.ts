@@ -1,85 +1,62 @@
 
 import { sql } from '@vercel/postgres';
-import { NextRequest } from 'next/server'; // Importando para ter acesso aos searchParams
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-// Este arquivo lida com duas ações: buscar e salvar conversas.
-// Vamos checar o método da requisição (GET ou POST) para decidir o que fazer.
-
-export default async function handler(request: NextRequest) {
-  if (request.method === 'GET') {
-    return await getConversations(request);
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === 'GET') {
+    return getConversations(req, res);
   }
-
-  if (request.method === 'POST') {
-    return await saveConversations(request);
+  if (req.method === 'POST') {
+    return saveConversations(req, res);
   }
-
-  return new Response('Método não permitido', { status: 405 });
+  res.setHeader('Allow', ['GET', 'POST']);
+  return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-
-// Função para BUSCAR as conversas (GET)
-async function getConversations(request: NextRequest) {
+async function getConversations(req: VercelRequest, res: VercelResponse) {
   try {
-    const userId = request.nextUrl.searchParams.get('userId');
-
+    const userId = req.query.userId as string;
     if (!userId) {
-      return new Response(JSON.stringify({ message: 'ID do usuário é obrigatório.' }), { status: 400 });
+      return res.status(400).json({ message: 'ID do usuário é obrigatório.' });
     }
 
     const { rows } = await sql`SELECT data FROM conversations WHERE user_id = ${Number(userId)};`;
-    
-    // Se o usuário não tiver conversas salvas, a consulta retorna 0 linhas.
-    // Nesse caso, retornamos um array vazio, que é o que o frontend espera.
+
     if (rows.length === 0) {
-      return new Response(JSON.stringify([]), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return res.status(200).json([]);
     }
 
-    // A coluna 'data' contém o array de conversas em formato JSON.
     const conversations = rows[0].data;
-
-    return new Response(JSON.stringify(conversations), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return res.status(200).json(conversations);
 
   } catch (error) {
     console.error('Get Conversations error:', error);
-    return new Response(JSON.stringify({ message: 'Erro ao buscar conversas.' }), { status: 500 });
+    return res.status(500).json({ message: 'Erro ao buscar conversas.' });
   }
 }
 
-// Função para SALVAR as conversas (POST)
-async function saveConversations(request: Request) {
-    try {
-        const { userId, conversations } = await request.json();
-
-        if (!userId || !conversations) {
-            return new Response(JSON.stringify({ message: 'ID do usuário e conversas são obrigatórios.' }), { status: 400 });
-        }
-        
-        // Converte o array de conversas para uma string JSON para salvar no banco
-        const conversationsJson = JSON.stringify(conversations);
-
-        // Usamos um "UPSERT":
-        // Tenta INSERIR. Se já existir uma linha para esse user_id (ON CONFLICT),
-        // ele faz um UPDATE na linha existente. Isso evita ter que checar se já existe.
-        await sql`
-            INSERT INTO conversations (user_id, data, updated_at)
-            VALUES (${Number(userId)}, ${conversationsJson}, NOW())
-            ON CONFLICT (user_id)
-            DO UPDATE SET 
-                data = EXCLUDED.data,
-                updated_at = NOW();
-        `;
-
-        return new Response(JSON.stringify({ message: 'Conversas salvas com sucesso.' }), { status: 200 });
-
-    } catch (error) {
-        console.error('Save Conversations error:', error);
-        return new Response(JSON.stringify({ message: 'Erro ao salvar conversas.' }), { status: 500 });
+async function saveConversations(req: VercelRequest, res: VercelResponse) {
+  try {
+    const { userId, conversations } = req.body;
+    if (!userId || conversations === undefined) {
+      return res.status(400).json({ message: 'ID do usuário e conversas são obrigatórios.' });
     }
+    
+    const conversationsJson = JSON.stringify(conversations);
+
+    await sql`
+      INSERT INTO conversations (user_id, data, updated_at)
+      VALUES (${Number(userId)}, ${conversationsJson}, NOW())
+      ON CONFLICT (user_id)
+      DO UPDATE SET 
+          data = EXCLUDED.data,
+          updated_at = NOW();
+    `;
+
+    return res.status(200).json({ message: 'Conversas salvas com sucesso.' });
+
+  } catch (error) {
+    console.error('Save Conversations error:', error);
+    return res.status(500).json({ message: 'Erro ao salvar conversas.' });
+  }
 }

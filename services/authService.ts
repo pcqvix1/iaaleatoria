@@ -1,92 +1,95 @@
-
 import { type Conversation, type User } from '../types';
-import { v4 as uuidv4 } from 'uuid';
 
-// This is a mock service. In a real app, you'd make API calls to your backend.
-// We use localStorage to simulate a persistent user session and data.
+// This service is now designed to communicate with a backend API.
+// The frontend is ready, but you will need to build the API endpoints on Vercel.
 
-const USERS_KEY = 'chat_users';
+const API_BASE_URL = '/api'; // Assuming Vercel Serverless Functions are in the /api directory
+
 const CURRENT_USER_KEY = 'currentUser';
-
-// Simulate network delay
-const networkDelay = (ms: number) => new Promise(res => setTimeout(res, ms));
-
-const getUsers = (): User[] => {
-    const usersJson = localStorage.getItem(USERS_KEY);
-    try {
-        return usersJson ? JSON.parse(usersJson) : [];
-    } catch (e) {
-        return [];
-    }
-};
-
-const saveUsers = (users: User[]) => {
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
-};
-
 
 export const authService = {
   async login(email: string, password: string): Promise<User | null> {
-    await networkDelay(300);
-    const users = getUsers();
-    const user = users.find(u => u.email === email && u.password === password);
-    
-    if (user) {
-        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
-        return user;
+    try {
+      const response = await fetch(`${API_BASE_URL}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        // The server will return an error message in the body
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Falha no login.');
+      }
+
+      const user: User = await response.json();
+      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+      return user;
+    } catch (error) {
+      console.error('Login failed:', error);
+      // We return null to signal failure to the component, which will handle the error message.
+      return null;
     }
-    return null;
   },
 
   async register(name: string, email: string, password: string): Promise<User> {
-    await networkDelay(500);
-    const users = getUsers();
+    const response = await fetch(`${API_BASE_URL}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
+    });
 
-    if (users.some(u => u.email === email)) {
-        throw new Error('Já existe uma conta com este e-mail.');
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Falha ao registrar.');
     }
 
-    const newUser: User = {
-        id: uuidv4(),
-        name,
-        email,
-        password, // NOTE: Storing plain text password only for this mock service.
-    };
-
-    users.push(newUser);
-    saveUsers(users);
-
+    const newUser: User = await response.json();
     // Automatically log in the new user
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(newUser));
     return newUser;
   },
 
   async logout(): Promise<void> {
-    await networkDelay(300);
+    // In a real app, you might want to call a /api/logout endpoint
+    // to invalidate a session token on the server.
     localStorage.removeItem(CURRENT_USER_KEY);
   },
 
   getCurrentUser(): User | null {
     const userJson = localStorage.getItem(CURRENT_USER_KEY);
-    return userJson ? JSON.parse(userJson) : null;
+    try {
+        return userJson ? JSON.parse(userJson) : null;
+    } catch (e) {
+        return null;
+    }
   },
 
   async getUserConversations(userId: string): Promise<Conversation[]> {
-    await networkDelay(500);
-    const conversationsJson = localStorage.getItem(`conversations_${userId}`);
-    if (conversationsJson) {
-        try {
-            return JSON.parse(conversationsJson);
-        } catch (e) {
-            console.error("Failed to parse conversations from localStorage", e);
-            return [];
-        }
+    try {
+      // In a real app, you would also pass an authentication token.
+      const response = await fetch(`${API_BASE_URL}/conversations?userId=${userId}`);
+      if (!response.ok) {
+        throw new Error('Não foi possível buscar as conversas.');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error("Failed to fetch conversations:", error);
+      return [];
     }
-    return [];
   },
 
   async saveUserConversations(userId: string, conversations: Conversation[]): Promise<void> {
-    // No artificial delay for saving, as it should feel instant.
-    localStorage.setItem(`conversations_${userId}`, JSON.stringify(conversations));
+    try {
+        await fetch(`${API_BASE_URL}/conversations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            // In a real app, you would also pass an authentication token.
+            body: JSON.stringify({ userId, conversations }),
+        });
+    } catch (error) {
+        console.error("Failed to save conversations:", error);
+        // You might want to handle this more gracefully, e.g., notify the user.
+    }
   },
 };

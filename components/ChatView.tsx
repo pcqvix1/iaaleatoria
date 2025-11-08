@@ -1,12 +1,12 @@
 
 import React, { useEffect, useRef } from 'react';
-import { type Conversation, type Message } from '../types';
+import { type Conversation, type ImagePart } from '../types';
 import { MessageBubble } from './Message';
 import { ChatInput } from './ChatInput';
 
 interface ChatViewProps {
   conversation: Conversation | undefined;
-  onSendMessage: (input: string) => void;
+  onSendMessage: (input: string, image?: ImagePart) => void;
   isTyping: boolean;
   onStopGenerating: () => void;
 }

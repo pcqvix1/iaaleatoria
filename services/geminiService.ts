@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
-import { type Message } from '../types';
+import { type Message, type ImagePart } from '../types';
 
 // Assume process.env.API_KEY is available in the environment
 const API_KEY = process.env.API_KEY;
@@ -15,23 +15,42 @@ const model = 'gemini-2.5-flash';
 
 export async function generateStream(
   history: Message[],
-  newPrompt: string
+  newPrompt: string,
+  image?: ImagePart | null
 ): Promise<AsyncGenerator<GenerateContentResponse>> {
   
-  const contents = [
-    ...history.map(msg => ({
-      role: msg.role,
-      parts: [{ text: msg.content }]
-    })),
-    {
-      role: 'user',
-      parts: [{ text: newPrompt }]
+  const contents = history.map(msg => {
+    const parts: any[] = [];
+    if (msg.content) parts.push({ text: msg.content });
+    if (msg.image) {
+      parts.push({
+        inlineData: {
+          data: msg.image.base64,
+          mimeType: msg.image.mimeType,
+        },
+      });
     }
-  ].filter(msg => msg.parts[0].text);
+    return { role: msg.role, parts };
+  });
+
+  const newUserParts: any[] = [];
+  if (newPrompt) newUserParts.push({ text: newPrompt });
+  if (image) {
+    newUserParts.push({
+      inlineData: {
+        data: image.base64,
+        mimeType: image.mimeType,
+      },
+    });
+  }
+  
+  contents.push({ role: 'user', parts: newUserParts });
+
+  const filteredContents = contents.filter(c => c.parts.length > 0);
 
   const responseStream = await ai.models.generateContentStream({
     model: model,
-    contents: contents,
+    contents: filteredContents,
     config: {
       systemInstruction: 'Você é um assistente de IA prestativo e amigável. Responda em português do Brasil e formate as respostas usando Markdown. Se perguntarem quem te criou ou quem é seu criador, responda que foi Pedro Campos Queiroz.',
     },

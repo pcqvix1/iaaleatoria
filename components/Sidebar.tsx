@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { type Conversation, type Theme } from '../types';
-import { PlusIcon, ChatIcon, TrashIcon, SunIcon, MoonIcon, MenuIcon, SearchIcon } from './Icons';
+import { type Conversation, type Theme, type User } from '../types';
+import { PlusIcon, ChatIcon, TrashIcon, SunIcon, MoonIcon, MenuIcon, SearchIcon, LogOutIcon, UserCircleIcon } from './Icons';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -13,6 +13,8 @@ interface SidebarProps {
   onClearHistory: () => void;
   theme: Theme;
   onToggleTheme: () => void;
+  currentUser: User | null;
+  onLogout: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -25,6 +27,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClearHistory,
   theme,
   onToggleTheme,
+  currentUser,
+  onLogout,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -33,9 +37,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (!lowercasedSearchTerm) {
       return true;
     }
-    return convo.messages.some(message =>
+    const titleMatch = convo.title.toLowerCase().includes(lowercasedSearchTerm);
+    const messageMatch = convo.messages.some(message =>
       message.content.toLowerCase().includes(lowercasedSearchTerm)
     );
+    return titleMatch || messageMatch;
   });
 
   return (
@@ -44,7 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         className={`fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose}
       ></div>
-      <aside className={`absolute md:relative flex flex-col h-full w-64 bg-gray-50 dark:bg-gpt-dark text-gray-800 dark:text-gray-200 z-40 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out`}>
+      <aside className={`absolute flex flex-col h-full w-64 bg-gray-50 dark:bg-gpt-dark text-gray-800 dark:text-gray-200 z-40 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out`}>
         <div className="p-2 flex items-center gap-2 flex-shrink-0">
           <button
               onClick={onClose}
@@ -108,6 +114,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
             text={theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'} 
             onClick={onToggleTheme} 
           />
+          <div className="border-t border-gray-200 dark:border-gray-700/50 my-1" />
+          {currentUser && (
+            <div className="px-2 py-2">
+              <div className="flex items-center gap-2 mb-2">
+                <UserCircleIcon />
+                <span className="font-semibold text-sm">{currentUser.name}</span>
+              </div>
+              <SidebarButton icon={<LogOutIcon />} text="Sair" onClick={onLogout} />
+            </div>
+          )}
         </div>
       </aside>
     </>

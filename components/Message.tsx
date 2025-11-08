@@ -43,11 +43,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
           </div>
         ) : (
           <>
-            <div className="prose prose-sm dark:prose-invert max-w-none">
-              <ReactMarkdown remarkPlugins={[RemarkGfm]}>
-                {message.content}
-              </ReactMarkdown>
-            </div>
+            {message.image && (
+                <img
+                    src={`data:${message.image.mimeType};base64,${message.image.base64}`}
+                    alt="Conteúdo enviado"
+                    className="mb-2 rounded-lg max-w-full h-auto max-h-80 object-contain"
+                />
+            )}
+            {message.content && (
+              <div className="prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown remarkPlugins={[RemarkGfm]}>
+                  {message.content}
+                </ReactMarkdown>
+              </div>
+            )}
             {hasSources && (
               <div className="mt-2 pt-2 border-t border-gray-300 dark:border-gray-500">
                 <button

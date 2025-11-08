@@ -2,17 +2,17 @@
 import { GoogleGenAI, GenerateContentResponse, Modality } from '@google/genai';
 import { type Message, type ImagePart, type AspectRatio } from '../types';
 
-const API_KEY = process.env.API_KEY;
-
-if (!API_KEY) {
-  console.warn("API_KEY is not set. Please set the environment variable.");
-}
-
-const ai = new GoogleGenAI({ apiKey: API_KEY });
-
 const chatModel = 'gemini-2.5-flash';
 const imageEditModel = 'gemini-2.5-flash-image';
 const imageGenerationModel = 'imagen-4.0-generate-001';
+
+const getAi = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("API_KEY environment variable not found.");
+  }
+  return new GoogleGenAI({ apiKey });
+}
 
 // Function for text chat and image analysis
 export async function generateStream(
@@ -20,6 +20,7 @@ export async function generateStream(
   newPrompt: string,
   image?: ImagePart | null
 ): Promise<AsyncGenerator<GenerateContentResponse>> {
+  const ai = getAi();
   
   const contents = history.map(msg => {
     const parts: any[] = [];
@@ -63,6 +64,7 @@ export async function generateStream(
 
 // Function for image editing
 export async function editImage(prompt: string, image: ImagePart): Promise<ImagePart> {
+  const ai = getAi();
   const response = await ai.models.generateContent({
     model: imageEditModel,
     contents: {
@@ -93,6 +95,7 @@ export async function editImage(prompt: string, image: ImagePart): Promise<Image
 
 // Function for image generation
 export async function generateImage(prompt: string, aspectRatio: AspectRatio): Promise<ImagePart> {
+  const ai = getAi();
   const response = await ai.models.generateImages({
     model: imageGenerationModel,
     prompt: prompt,
@@ -117,6 +120,7 @@ export async function generateImage(prompt: string, aspectRatio: AspectRatio): P
 export async function generateConversationTitle(
   messages: Message[]
 ): Promise<string> {
+  const ai = getAi();
   const context = messages
     .slice(0, 2)
     .map(msg => `${msg.role === 'user' ? 'Usuário' : 'Assistente'}: ${msg.content}`)

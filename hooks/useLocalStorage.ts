@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 
 export function useLocalStorage<T,>(key: string, initialValue: T): [T, React.Dispatch<React.SetStateAction<T>>] {
@@ -17,11 +16,11 @@ export function useLocalStorage<T,>(key: string, initialValue: T): [T, React.Dis
 
   useEffect(() => {
     try {
-      const valueToStore =
-        typeof storedValue === 'function'
-          ? storedValue(storedValue)
-          : storedValue;
-      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+      // FIX: Correctly store the value from state. The previous logic to handle
+      // function values was incorrect and could lead to unexpected behavior.
+      // `storedValue` holds the actual value to be persisted, even after a
+      // functional update to the state.
+      window.localStorage.setItem(key, JSON.stringify(storedValue));
     } catch (error) {
       console.error(error);
     }

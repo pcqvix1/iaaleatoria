@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 
 interface LoginPageProps {
@@ -19,22 +18,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister }) => 
         setIsLoading(true);
         setError(null);
         
-        let result: string | null = null;
         try {
-            if (isLoginView) {
-                result = await onLogin(email, password);
-            } else {
-                result = await onRegister(name, email, password);
+            const result = isLoginView
+                ? await onLogin(email, password)
+                : await onRegister(name, email, password);
+
+            // If there's an error message, display it.
+            // On success, result is null and we don't set an error.
+            // The component will unmount on successful login/register.
+            if (result) {
+                setError(result);
             }
         } catch (err) {
-            result = err instanceof Error ? err.message : 'Ocorreu um erro inesperado.';
+            // This will catch any unexpected errors from the auth process
+            // that weren't handled by onLogin/onRegister.
+            setError(err instanceof Error ? err.message : 'Ocorreu um erro inesperado.');
+        } finally {
+            // This ensures the loading state is always reset, even if an
+            // error occurs or the component is about to unmount.
+            setIsLoading(false);
         }
-        
-        if (result) {
-            setError(result);
-        }
-        
-        setIsLoading(false);
     };
 
     const toggleView = () => {

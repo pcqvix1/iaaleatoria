@@ -1,15 +1,16 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { PaperAirplaneIcon, StopIcon, PaperclipIcon, XCircleIcon } from './Icons';
+import { PaperAirplaneIcon, StopIcon, PaperclipIcon, XCircleIcon, SparklesIcon } from './Icons';
 import { type ImagePart } from '../types';
 
 interface ChatInputProps {
   onSendMessage: (input: string, image?: ImagePart) => void;
   isGenerating: boolean;
   onStopGenerating: () => void;
+  onOpenImageGenerationModal: () => void;
 }
 
-export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isGenerating, onStopGenerating }) => {
+export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isGenerating, onStopGenerating, onOpenImageGenerationModal }) => {
   const [input, setInput] = useState('');
   const [image, setImage] = useState<{ url: string; base64: string; mimeType: string } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -130,13 +131,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isGeneratin
         >
             <PaperclipIcon />
         </button>
+        <button
+            onClick={onOpenImageGenerationModal}
+            aria-label="Gerar imagem"
+            className="p-3 text-gray-500 hover:text-gpt-green dark:text-gray-400 dark:hover:text-gpt-green"
+            disabled={isGenerating}
+        >
+            <SparklesIcon />
+        </button>
         <textarea
           ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          placeholder="Envie uma mensagem ou anexe uma imagem..."
+          placeholder="Anexe uma imagem para editar ou descreva uma para criar..."
           rows={1}
           className="w-full resize-none bg-transparent py-2 pr-2 text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none max-h-48"
           disabled={isGenerating}

@@ -80,3 +80,11 @@ export const UserCircleIcon = () => (
         <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"></path>
     </svg>
 );
+
+export const SparklesIcon = () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M12 3L9.27 9.27L3 12l6.27 2.73L12 21l2.73-6.27L21 12l-6.27-2.73L12 3z" />
+        <path d="M4 4h.01" />
+        <path d="M20 20h.01" />
+    </svg>
+);

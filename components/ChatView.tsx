@@ -9,9 +9,10 @@ interface ChatViewProps {
   onSendMessage: (input: string, image?: ImagePart) => void;
   isTyping: boolean;
   onStopGenerating: () => void;
+  onOpenImageGenerationModal: () => void;
 }
 
-export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage, isTyping, onStopGenerating }) => {
+export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage, isTyping, onStopGenerating, onOpenImageGenerationModal }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -41,7 +42,12 @@ export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage,
       </div>
       <div className="w-full p-4 md:p-6 bg-transparent flex-shrink-0">
         <div className="max-w-4xl mx-auto">
-          <ChatInput onSendMessage={onSendMessage} isGenerating={isTyping} onStopGenerating={onStopGenerating} />
+          <ChatInput 
+            onSendMessage={onSendMessage} 
+            isGenerating={isTyping} 
+            onStopGenerating={onStopGenerating}
+            onOpenImageGenerationModal={onOpenImageGenerationModal}
+          />
         </div>
       </div>
     </div>

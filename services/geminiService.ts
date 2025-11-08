@@ -1,8 +1,7 @@
 
-import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
-import { type Message, type ImagePart } from '../types';
+import { GoogleGenAI, GenerateContentResponse, Modality } from '@google/genai';
+import { type Message, type ImagePart, type AspectRatio } from '../types';
 
-// Assume process.env.API_KEY is available in the environment
 const API_KEY = process.env.API_KEY;
 
 if (!API_KEY) {
@@ -11,8 +10,11 @@ if (!API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-const model = 'gemini-2.5-flash';
+const chatModel = 'gemini-2.5-flash';
+const imageEditModel = 'gemini-2.5-flash-image';
+const imageGenerationModel = 'imagen-4.0-generate-001';
 
+// Function for text chat and image analysis
 export async function generateStream(
   history: Message[],
   newPrompt: string,
@@ -49,7 +51,7 @@ export async function generateStream(
   const filteredContents = contents.filter(c => c.parts.length > 0);
 
   const responseStream = await ai.models.generateContentStream({
-    model: model,
+    model: chatModel,
     contents: filteredContents,
     config: {
       systemInstruction: 'Você é um assistente de IA prestativo e amigável. Responda em português do Brasil e formate as respostas usando Markdown. Se perguntarem quem te criou ou quem é seu criador, responda que foi Pedro Campos Queiroz.',
@@ -58,6 +60,59 @@ export async function generateStream(
 
   return responseStream;
 }
+
+// Function for image editing
+export async function editImage(prompt: string, image: ImagePart): Promise<ImagePart> {
+  const response = await ai.models.generateContent({
+    model: imageEditModel,
+    contents: {
+      parts: [
+        {
+          inlineData: {
+            data: image.base64,
+            mimeType: image.mimeType,
+          },
+        },
+        { text: prompt },
+      ],
+    },
+    config: {
+      responseModalities: [Modality.IMAGE],
+    },
+  });
+
+  const editedImagePart = response.candidates?.[0]?.content?.parts?.find(part => part.inlineData);
+  if (editedImagePart?.inlineData) {
+    return {
+      base64: editedImagePart.inlineData.data,
+      mimeType: editedImagePart.inlineData.mimeType || 'image/png', // Default to png if not provided
+    };
+  }
+  throw new Error('Não foi possível editar a imagem.');
+}
+
+// Function for image generation
+export async function generateImage(prompt: string, aspectRatio: AspectRatio): Promise<ImagePart> {
+  const response = await ai.models.generateImages({
+    model: imageGenerationModel,
+    prompt: prompt,
+    config: {
+      numberOfImages: 1,
+      aspectRatio: aspectRatio,
+      outputMimeType: 'image/png',
+    },
+  });
+
+  const generatedImage = response.generatedImages?.[0];
+  if (generatedImage?.image) {
+    return {
+      base64: generatedImage.image.imageBytes,
+      mimeType: generatedImage.image.mimeType || 'image/png',
+    };
+  }
+  throw new Error('Não foi possível gerar a imagem.');
+}
+
 
 export async function generateConversationTitle(
   messages: Message[]
@@ -73,7 +128,7 @@ ${context}`;
 
   try {
     const response = await ai.models.generateContent({
-      model: model,
+      model: chatModel,
       contents: prompt,
     });
     // Clean up the title by removing quotes and trailing periods.

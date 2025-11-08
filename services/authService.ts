@@ -1,3 +1,4 @@
+
 import { type Conversation, type User } from '../types';
 
 // This service is now designed to communicate with a backend API.
@@ -8,28 +9,22 @@ const API_BASE_URL = '/api'; // Assuming Vercel Serverless Functions are in the 
 const CURRENT_USER_KEY = 'currentUser';
 
 export const authService = {
-  async login(email: string, password: string): Promise<User | null> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+  async login(email: string, password: string): Promise<User> {
+    const response = await fetch(`${API_BASE_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
 
-      if (!response.ok) {
-        // The server will return an error message in the body
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Falha no login.');
-      }
-
-      const user: User = await response.json();
-      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
-      return user;
-    } catch (error) {
-      console.error('Login failed:', error);
-      // We return null to signal failure to the component, which will handle the error message.
-      return null;
+    if (!response.ok) {
+      // The server will return an error message in the body
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Falha no login.');
     }
+
+    const user: User = await response.json();
+    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+    return user;
   },
 
   async register(name: string, email: string, password: string): Promise<User> {

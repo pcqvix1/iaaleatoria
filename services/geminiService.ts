@@ -40,7 +40,7 @@ export async function generateStream(
   });
 
   const userParts: ContentPart[] = [];
-  let promptWithAttachmentInfo = newPrompt;
+  let finalUserPrompt = newPrompt;
 
   if (attachment) {
     if (attachment.mimeType.startsWith('image/')) {
@@ -50,13 +50,15 @@ export async function generateStream(
           data: attachment.data,
         },
       });
-    } else {
-      promptWithAttachmentInfo = `${newPrompt}\n\n[Arquivo anexado pelo usuário: ${attachment.name}]`.trim();
+    } else if (attachment.data) { 
+      finalUserPrompt = `O usuário anexou um arquivo chamado "${attachment.name}". O conteúdo do arquivo está abaixo, entre os separadores. Analise o conteúdo e responda à pergunta do usuário.\n\n--- INÍCIO DO ARQUIVO ---\n${attachment.data}\n--- FIM DO ARQUIVO ---\n\nPergunta do usuário: ${newPrompt}`;
+    } else { 
+      finalUserPrompt = `${newPrompt}\n\n[O usuário anexou o arquivo "${attachment.name}" (${attachment.mimeType}), mas não foi possível ler o seu conteúdo. Informe educadamente ao usuário que você não pode acessar o conteúdo deste tipo de arquivo e que ele pode tentar com arquivos de texto simples (como .txt, .md, .csv) ou copiar e colar o texto do documento na conversa.]`;
     }
   }
 
-  if (promptWithAttachmentInfo) {
-    userParts.push({ text: promptWithAttachmentInfo });
+  if (finalUserPrompt) {
+    userParts.push({ text: finalUserPrompt });
   }
   
   contents.push({ role: 'user', parts: userParts });

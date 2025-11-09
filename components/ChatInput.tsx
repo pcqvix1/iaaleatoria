@@ -1,6 +1,11 @@
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { PaperAirplaneIcon, StopIcon, PaperclipIcon, CloseIcon, FileIcon } from './Icons';
 
+declare const pdfjsLib: any;
+declare const mammoth: any;
+declare const XLSX: any;
+declare const JSZip: any;
+
 interface ChatInputProps {
   onSendMessage: (input: string, attachment?: { data: string; mimeType: string; name: string; }) => void;
   isGenerating: boolean;
@@ -18,6 +23,12 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+    }
+  }, []);
 
   useImperativeHandle(ref, () => ({
     setFile: (file: File) => {
@@ -79,23 +90,122 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
     setFilePreviewUrl(null);
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if ((!input.trim() && !attachedFile) || isGenerating) return;
 
-    if (attachedFile) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const base64Data = (reader.result as string).split(',')[1];
-            onSendMessage(input, { data: base64Data, mimeType: attachedFile.type, name: attachedFile.name });
-            handleRemoveFile();
-            setInput('');
-        };
-        reader.readAsDataURL(attachedFile);
-    } else {
-        onSendMessage(input);
-        setInput('');
+    if (!attachedFile) {
+      onSendMessage(input);
+      setInput('');
+      return;
     }
+
+    const file = attachedFile;
+    const cleanupAndSend = (attachmentData: { data: string; mimeType: string; name: string; }) => {
+      onSendMessage(input, attachmentData);
+      handleRemoveFile();
+      setInput('');
+    };
+
+    const isImage = file.type.startsWith('image/');
+    const isText = file.type.startsWith('text/') || ['application/json', 'application/javascript', 'application/xml'].includes(file.type) || file.name.endsWith('.md') || file.name.endsWith('.csv');
+    const isPdf = file.type === 'application/pdf';
+    const isDocx = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.endsWith('.docx');
+    const isXlsx = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || file.name.endsWith('.xlsx');
+    const isPptx = file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' || file.name.endsWith('.pptx');
+
+    // Handle Images (Base64)
+    if (isImage) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (reader.result) {
+          cleanupAndSend({ data: (reader.result as string).split(',')[1], mimeType: file.type, name: file.name });
+        } else {
+          console.error("Error reading image file:", reader.error);
+          cleanupAndSend({ data: '', mimeType: file.type, name: file.name });
+        }
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    // Handle plain text files
+    if (isText) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          cleanupAndSend({ data: reader.result, mimeType: file.type, name: file.name });
+        } else {
+          console.error("Error reading text file:", reader.error);
+          cleanupAndSend({ data: '', mimeType: file.type, name: file.name });
+        }
+      };
+      reader.readAsText(file);
+      return;
+    }
+    
+    // Handle complex files (PDF, DOCX, XLSX, PPTX)
+    if (isPdf || isDocx || isXlsx || isPptx) {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        if (!event.target?.result) {
+          cleanupAndSend({ data: '', mimeType: file.type, name: file.name });
+          return;
+        }
+        const arrayBuffer = event.target.result as ArrayBuffer;
+        let fullText = '';
+        try {
+          if (isPdf && typeof pdfjsLib !== 'undefined') {
+            const typedArray = new Uint8Array(arrayBuffer);
+            const pdf = await pdfjsLib.getDocument(typedArray).promise;
+            for (let i = 1; i <= pdf.numPages; i++) {
+              const page = await pdf.getPage(i);
+              const textContent = await page.getTextContent();
+              fullText += textContent.items.map((s: any) => s.str).join(' ') + '\n\n';
+            }
+          } else if (isDocx && typeof mammoth !== 'undefined') {
+            const result = await mammoth.extractRawText({ arrayBuffer });
+            fullText = result.value;
+          } else if (isXlsx && typeof XLSX !== 'undefined') {
+            const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+            workbook.SheetNames.forEach(sheetName => {
+              fullText += `--- Folha: ${sheetName} ---\n`;
+              const worksheet = workbook.Sheets[sheetName];
+              const csvData = XLSX.utils.sheet_to_csv(worksheet);
+              fullText += csvData + '\n\n';
+            });
+          } else if (isPptx && typeof JSZip !== 'undefined') {
+            const zip = await JSZip.loadAsync(arrayBuffer);
+            const parser = new DOMParser();
+            const slidePromises: Promise<string>[] = [];
+            const slideFileNames = Object.keys(zip.files).filter(name => name.startsWith('ppt/slides/slide') && name.endsWith('.xml'));
+            for (const fileName of slideFileNames) {
+              slidePromises.push(zip.files[fileName].async('string'));
+            }
+            const slideXmls = await Promise.all(slidePromises);
+            fullText = slideXmls.map(xml => {
+              const doc = parser.parseFromString(xml, "application/xml");
+              const textNodes = doc.getElementsByTagName("a:t");
+              let slideText = '';
+              for (let i = 0; i < textNodes.length; i++) {
+                slideText += textNodes[i].textContent + ' ';
+              }
+              return slideText.trim();
+            }).filter(Boolean).join('\n\n');
+          }
+          cleanupAndSend({ data: fullText.trim(), mimeType: file.type, name: file.name });
+        } catch (error) {
+          console.error(`Error parsing ${file.name}:`, error);
+          cleanupAndSend({ data: '', mimeType: file.type, name: file.name });
+        }
+      };
+      reader.readAsArrayBuffer(file);
+      return;
+    }
+
+    // Fallback for any other unsupported file type
+    cleanupAndSend({ data: '', mimeType: file.type, name: file.name });
   };
+
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {

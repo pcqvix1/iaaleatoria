@@ -70,7 +70,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ currentUser, onBack, o
 
   return (
     <div className="flex-1 flex flex-col bg-transparent overflow-y-auto">
-       <header className="relative flex-shrink-0 p-4 border-b border-gray-300 dark:border-gray-700/50 flex items-center gap-4">
+       <header className="relative flex-shrink-0 px-4 py-2 border-b border-gray-300 dark:border-gray-700/50 flex items-center gap-4">
             <button onClick={onBack} className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700/50">
                 <ArrowLeftIcon />
             </button>

@@ -324,9 +324,9 @@ const App: React.FC = () => {
   };
 
   const handlePasswordUpdate = () => {
-    // Re-fetch user from local storage to get updated `hasPassword` flag
-    const updatedUser = authService.getCurrentUser();
-    if (updatedUser) {
+    if (currentUser) {
+      const updatedUser = { ...currentUser, hasPassword: true };
+      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
       setCurrentUser(updatedUser);
     }
   };
@@ -357,16 +357,16 @@ const App: React.FC = () => {
             onLogout={handleLogout}
             onGoToAccount={() => { setView('account'); setIsSidebarOpen(false); }}
           />
+          {!isSidebarOpen && (
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className="absolute top-2 left-2 z-30 p-2 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700/50"
+              aria-label="Abrir barra lateral"
+            >
+              <MenuIcon />
+            </button>
+          )}
           <main className={`transition-all duration-300 ease-in-out absolute top-0 bottom-0 right-0 flex flex-col left-0 ${isSidebarOpen ? 'md:left-64' : ''}`}>
-            {!isSidebarOpen && (
-              <button 
-                onClick={() => setIsSidebarOpen(true)}
-                className="absolute top-2 left-2 z-20 p-2 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700/50"
-                aria-label="Abrir barra lateral"
-              >
-                <MenuIcon />
-              </button>
-            )}
             {view === 'chat' ? (
               <ChatView 
                 conversation={currentConversation}

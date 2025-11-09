@@ -1,18 +1,29 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { PaperAirplaneIcon, StopIcon, PaperclipIcon, CloseIcon } from './Icons';
+import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
+import { PaperAirplaneIcon, StopIcon, PaperclipIcon, CloseIcon, FileIcon } from './Icons';
 
 interface ChatInputProps {
-  onSendMessage: (input: string, image?: { data: string; mimeType: string; }) => void;
+  onSendMessage: (input: string, attachment?: { data: string; mimeType: string; name: string; }) => void;
   isGenerating: boolean;
   onStopGenerating: () => void;
 }
 
-export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isGenerating, onStopGenerating }) => {
+export type ChatInputHandles = {
+  setFile: (file: File) => void;
+};
+
+export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendMessage, isGenerating, onStopGenerating }, ref) => {
   const [input, setInput] = useState('');
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    setFile: (file: File) => {
+      processFile(file);
+    },
+  }));
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -23,64 +34,61 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isGeneratin
     }
   }, [input]);
   
-  const processImageFile = (file: File) => {
-    if (imageFile) return; // Don't allow multiple images
+  const processFile = (file: File) => {
+    if (attachedFile) return;
 
-    setImageFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    setAttachedFile(file);
+    if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setFilePreviewUrl(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+    }
   };
 
-  const handleImageInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      processImageFile(file);
+      processFile(file);
     }
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    // Check for clipboard items. This is more robust for handling images
-    // pasted from sources like screenshot tools or context menus.
     const items = e.clipboardData.items;
-    // FIX: Replaced for...of with a standard for loop to fix TypeScript errors
-    // where `item` was incorrectly inferred as type `unknown`. This ensures `item`
-    // is correctly typed as `DataTransferItem`.
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       if (item.kind === 'file' && item.type.startsWith('image/')) {
         const file = item.getAsFile();
         if (file) {
           e.preventDefault();
-          processImageFile(file);
-          return; // Process only the first image found
+          processFile(file);
+          return;
         }
       }
     }
   };
 
-  const handleRemoveImage = () => {
+  const handleRemoveFile = () => {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-    setImageFile(null);
-    setImagePreview(null);
+    setAttachedFile(null);
+    setFilePreviewUrl(null);
   };
 
   const handleSend = () => {
-    if ((!input.trim() && !imageFile) || isGenerating) return;
+    if ((!input.trim() && !attachedFile) || isGenerating) return;
 
-    if (imageFile) {
+    if (attachedFile) {
         const reader = new FileReader();
         reader.onloadend = () => {
             const base64Data = (reader.result as string).split(',')[1];
-            onSendMessage(input, { data: base64Data, mimeType: imageFile.type });
-            handleRemoveImage();
+            onSendMessage(input, { data: base64Data, mimeType: attachedFile.type, name: attachedFile.name });
+            handleRemoveFile();
             setInput('');
         };
-        reader.readAsDataURL(imageFile);
+        reader.readAsDataURL(attachedFile);
     } else {
         onSendMessage(input);
         setInput('');
@@ -93,34 +101,52 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isGeneratin
       handleSend();
     }
   };
+  
+  const FilePreview = () => {
+    if (!attachedFile) return null;
+
+    return (
+        <div className="mb-2 p-2 bg-gray-100 dark:bg-gpt-gray rounded-lg relative w-auto max-w-sm animate-fade-in">
+            <div className="flex items-center gap-2">
+                {filePreviewUrl ? (
+                    <img src={filePreviewUrl} alt="Preview" className="w-16 h-16 object-cover rounded-md" />
+                ) : (
+                    <div className="w-16 h-16 flex items-center justify-center bg-gray-200 dark:bg-gpt-light-gray rounded-md">
+                        <FileIcon />
+                    </div>
+                )}
+                <div className="flex-1 overflow-hidden">
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{attachedFile.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{Math.round(attachedFile.size / 1024)} KB</p>
+                </div>
+            </div>
+             <button
+                onClick={handleRemoveFile}
+                className="absolute -top-2 -right-2 bg-gray-700 text-white rounded-full p-1 hover:bg-red-500 transition-colors shadow-md"
+                aria-label="Remove file"
+            >
+                <CloseIcon />
+            </button>
+        </div>
+    )
+  }
 
   return (
     <div className="relative">
-      {imagePreview && (
-        <div className="mb-2 p-2 bg-gray-100 dark:bg-gpt-gray rounded-lg relative w-24 h-24 animate-fade-in">
-          <img src={imagePreview} alt="Preview" className="w-full h-full object-cover rounded-md" />
-          <button
-            onClick={handleRemoveImage}
-            className="absolute -top-1 -right-1 bg-gray-800 text-white rounded-full p-0.5 hover:bg-red-500 transition-colors"
-            aria-label="Remove image"
-          >
-            <CloseIcon />
-          </button>
-        </div>
-      )}
+        <FilePreview />
       <div className="flex items-end bg-white dark:bg-gpt-light-gray rounded-xl shadow-sm ring-1 ring-gray-300 dark:ring-gray-600 focus-within:ring-2 focus-within:ring-gpt-green dark:focus-within:ring-gpt-green transition-shadow duration-200">
         <input 
             type="file" 
             ref={fileInputRef} 
-            onChange={handleImageInputChange} 
-            accept="image/*" 
+            onChange={handleFileInputChange} 
+            accept="*" 
             className="hidden" 
         />
         <button
           onClick={() => fileInputRef.current?.click()}
-          aria-label="Anexar imagem"
+          aria-label="Anexar arquivo"
           className="p-3 text-gray-500 hover:text-gpt-green dark:text-gray-400 dark:hover:text-gpt-green disabled:opacity-50"
-          disabled={isGenerating || !!imageFile}
+          disabled={isGenerating || !!attachedFile}
         >
           <PaperclipIcon />
         </button>
@@ -146,7 +172,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isGeneratin
         ) : (
           <button
             onClick={handleSend}
-            disabled={(!input.trim() && !imageFile) || isGenerating}
+            disabled={(!input.trim() && !attachedFile) || isGenerating}
             aria-label="Enviar mensagem"
             className="p-3 text-gray-500 hover:text-gpt-green dark:text-gray-400 dark:hover:text-gpt-green disabled:opacity-50 disabled:hover:text-gray-500"
           >
@@ -156,4 +182,4 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isGeneratin
       </div>
     </div>
   );
-};
+});

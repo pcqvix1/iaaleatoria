@@ -8,12 +8,13 @@ export interface GroundingChunk {
 }
 
 export interface Message {
-  id: string;
+  id:string;
   role: Role;
   content: string;
-  image?: {
+  attachment?: {
     data: string; // base64 encoded string
     mimeType: string;
+    name: string;
   };
   groundingChunks?: GroundingChunk[];
 }

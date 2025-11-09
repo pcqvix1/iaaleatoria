@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import RemarkGfm from 'remark-gfm';
 import { type Message } from '../types';
+import { FileIcon } from './Icons';
 
 interface MessageBubbleProps {
   message: Message;
@@ -20,12 +21,53 @@ const SourceChevronIcon = ({ open }: { open: boolean }) => (
   </svg>
 );
 
+const AttachmentDisplay: React.FC<{ attachment: NonNullable<Message['attachment']> }> = ({ attachment }) => {
+  const isImage = attachment.mimeType.startsWith('image/');
+
+  const handleDownload = () => {
+    const byteCharacters = atob(attachment.data);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], {type: attachment.mimeType});
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = attachment.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  };
+
+  if (isImage) {
+    return (
+      <img
+          src={`data:${attachment.mimeType};base64,${attachment.data}`}
+          alt={attachment.name || "Uploaded content"}
+          className="rounded-lg mb-2 max-w-xs max-h-64 object-contain"
+      />
+    );
+  }
+
+  return (
+    <div className="mb-2 p-2 bg-gray-200 dark:bg-gpt-gray rounded-md flex items-center gap-3">
+        <FileIcon />
+        <div className="flex-1 truncate">
+            <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{attachment.name}</p>
+        </div>
+        <button onClick={handleDownload} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Baixar</button>
+    </div>
+  );
+};
+
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
   const [showSources, setShowSources] = useState(false);
   
   const isUserModel = message.role === 'user';
-  const showTyping = message.role === 'model' && message.content === '';
+  const showTyping = message.role === 'model' && message.content === '' && !message.attachment;
   const hasSources = message.groundingChunks && message.groundingChunks.length > 0;
 
   const bubbleContainerClasses = isUserModel ? 'justify-end' : 'justify-start';
@@ -43,13 +85,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
           </div>
         ) : (
           <>
-            {message.image && (
-                <img
-                    src={`data:${message.image.mimeType};base64,${message.image.data}`}
-                    alt="Uploaded content"
-                    className="rounded-lg mb-2 max-w-xs max-h-64 object-contain"
-                />
-            )}
+            {message.attachment && <AttachmentDisplay attachment={message.attachment} />}
             {message.content && (
               <div className="prose prose-sm dark:prose-invert max-w-none">
                 <ReactMarkdown remarkPlugins={[RemarkGfm]}>

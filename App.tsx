@@ -9,6 +9,7 @@ import { authService } from './services/authService';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { MenuIcon } from './components/Icons';
 import { type Conversation, type Message, type Theme, type GroundingChunk, type User } from './types';
+import { type ChatInputHandles } from './components/ChatInput';
 
 const App: React.FC = () => {
   const [theme, setTheme] = useLocalStorage<Theme>('theme', 'dark');
@@ -20,6 +21,7 @@ const App: React.FC = () => {
 
   const stopGenerationRef = useRef(false);
   const saveTimeoutRef = useRef<number | undefined>(undefined);
+  const chatInputRef = useRef<ChatInputHandles>(null);
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -133,8 +135,8 @@ const App: React.FC = () => {
   };
 
 
-  const handleSendMessage = async (input: string, image?: { data: string; mimeType: string; }) => {
-    if (!currentUser || (!input.trim() && !image)) return;
+  const handleSendMessage = async (input: string, attachment?: { data: string; mimeType: string; name: string; }) => {
+    if (!currentUser || (!input.trim() && !attachment)) return;
 
     const conversationIdToUpdate = ensureConversationExists();
 
@@ -142,7 +144,7 @@ const App: React.FC = () => {
         id: uuidv4(), 
         role: 'user', 
         content: input,
-        ...(image && { image }),
+        ...(attachment && { attachment }),
     };
     const aiMessage: Message = { id: uuidv4(), role: 'model', content: '', groundingChunks: [] };
 
@@ -156,7 +158,7 @@ const App: React.FC = () => {
     stopGenerationRef.current = false;
 
     try {
-      const responseStream = await generateStream(conversationHistory, input, image);
+      const responseStream = await generateStream(conversationHistory, input, attachment);
 
       let fullResponse = '';
       const allChunks = [];
@@ -352,6 +354,8 @@ const App: React.FC = () => {
               onSendMessage={handleSendMessage}
               isTyping={currentConversation?.isTyping ?? false}
               onStopGenerating={handleStopGenerating}
+              onFileDrop={(file) => chatInputRef.current?.setFile(file)}
+              chatInputRef={chatInputRef}
             />
           </main>
         </>

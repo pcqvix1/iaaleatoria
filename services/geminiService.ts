@@ -15,21 +15,21 @@ const getAi = () => {
 
 type ContentPart = { text: string } | { inlineData: { mimeType: string; data: string } };
 
-// Function for text and image chat
+// Function for text and file chat
 export async function generateStream(
   history: Message[],
   newPrompt: string,
-  image?: { data: string; mimeType: string; }
+  attachment?: { data: string; mimeType: string; name: string; }
 ): Promise<AsyncGenerator<GenerateContentResponse>> {
   const ai = getAi();
   
   const contents = history.map(msg => {
     const parts: ContentPart[] = [];
-    if (msg.role === 'user' && msg.image) {
+    if (msg.role === 'user' && msg.attachment && msg.attachment.mimeType.startsWith('image/')) {
         parts.push({
             inlineData: {
-                mimeType: msg.image.mimeType,
-                data: msg.image.data
+                mimeType: msg.attachment.mimeType,
+                data: msg.attachment.data
             }
         });
     }
@@ -40,24 +40,32 @@ export async function generateStream(
   });
 
   const userParts: ContentPart[] = [];
-  if (image) {
-    userParts.push({
-      inlineData: {
-        mimeType: image.mimeType,
-        data: image.data,
-      },
-    });
+  let promptWithAttachmentInfo = newPrompt;
+
+  if (attachment) {
+    if (attachment.mimeType.startsWith('image/')) {
+      userParts.push({
+        inlineData: {
+          mimeType: attachment.mimeType,
+          data: attachment.data,
+        },
+      });
+    } else {
+      promptWithAttachmentInfo = `${newPrompt}\n\n[Arquivo anexado pelo usuário: ${attachment.name}]`.trim();
+    }
   }
-  if (newPrompt) {
-    userParts.push({ text: newPrompt });
+
+  if (promptWithAttachmentInfo) {
+    userParts.push({ text: promptWithAttachmentInfo });
   }
   
   contents.push({ role: 'user', parts: userParts });
 
   const filteredContents = contents.filter(c => c.parts.length > 0);
+  const modelToUse = attachment?.mimeType.startsWith('image/') ? visionModel : chatModel;
 
   const responseStream = await ai.models.generateContentStream({
-    model: image ? visionModel : chatModel,
+    model: modelToUse,
     contents: filteredContents,
     config: {
       systemInstruction: 'Você é um assistente de IA prestativo e amigável. Responda em português do Brasil e formate as respostas usando Markdown. Se perguntarem quem te criou ou quem é seu criador, responda que foi Pedro Campos Queiroz.',
@@ -75,8 +83,8 @@ export async function generateConversationTitle(
     .slice(0, 2)
     .map(msg => {
         let contentText = msg.content;
-        if (msg.image) {
-            contentText = `[IMAGEM] ${contentText}`.trim();
+        if (msg.attachment) {
+            contentText = `[ARQUIVO: ${msg.attachment.name}] ${contentText}`.trim();
         }
         return `${msg.role === 'user' ? 'Usuário' : 'Assistente'}: ${contentText}`;
     })

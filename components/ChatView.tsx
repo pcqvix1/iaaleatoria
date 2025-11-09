@@ -1,18 +1,22 @@
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { type Conversation } from '../types';
 import { MessageBubble } from './Message';
-import { ChatInput } from './ChatInput';
+import { ChatInput, type ChatInputHandles } from './ChatInput';
+import { UploadCloudIcon } from './Icons';
 
 interface ChatViewProps {
   conversation: Conversation | undefined;
-  onSendMessage: (input: string, image?: { data: string; mimeType: string; }) => void;
+  onSendMessage: (input: string, attachment?: { data: string; mimeType: string; name: string; }) => void;
   isTyping: boolean;
   onStopGenerating: () => void;
+  onFileDrop: (file: File) => void;
+  chatInputRef: React.RefObject<ChatInputHandles>;
 }
 
-export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage, isTyping, onStopGenerating }) => {
+export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage, isTyping, onStopGenerating, onFileDrop, chatInputRef }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -22,8 +26,49 @@ export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage,
     scrollToBottom();
   }, [conversation?.messages]);
 
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      onFileDrop(e.dataTransfer.files[0]);
+      e.dataTransfer.clearData();
+    }
+  };
+
   return (
-    <div className="flex-1 flex flex-col bg-transparent overflow-hidden">
+    <div 
+      className="flex-1 flex flex-col bg-transparent overflow-hidden relative"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {isDragging && (
+        <div className="absolute inset-0 bg-black bg-opacity-60 flex flex-col items-center justify-center z-20 pointer-events-none animate-fade-in">
+          <UploadCloudIcon />
+          <p className="text-white text-lg font-semibold mt-2">Solte o arquivo para anexar</p>
+        </div>
+      )}
       <header className="relative w-full p-2 text-center text-sm text-gray-600 dark:text-gray-400 border-b border-gray-300 dark:border-gray-700/50 flex-shrink-0">
         feito por Pedro Campos Queiroz
       </header>
@@ -42,6 +87,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage,
       <div className="w-full p-4 md:p-6 bg-transparent flex-shrink-0">
         <div className="max-w-4xl mx-auto">
           <ChatInput 
+            ref={chatInputRef}
             onSendMessage={onSendMessage} 
             isGenerating={isTyping} 
             onStopGenerating={onStopGenerating}

@@ -357,7 +357,7 @@ const App: React.FC = () => {
             onLogout={handleLogout}
             onGoToAccount={() => { setView('account'); setIsSidebarOpen(false); }}
           />
-          {!isSidebarOpen && (
+          {!isSidebarOpen && view === 'chat' && (
             <button 
               onClick={() => setIsSidebarOpen(true)}
               className="absolute top-2 left-2 z-30 p-2 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700/50"

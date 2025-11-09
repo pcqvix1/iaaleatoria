@@ -1,10 +1,9 @@
 
-import { GoogleGenAI, GenerateContentResponse, Modality } from '@google/genai';
-import { type Message, type ImagePart, type AspectRatio } from '../types';
+import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
+import { type Message } from '../types';
 
 const chatModel = 'gemini-2.5-flash';
-const imageEditModel = 'gemini-2.5-flash-image';
-const imageGenerationModel = 'imagen-4.0-generate-001';
+const visionModel = 'gemini-2.5-flash';
 
 const getAi = () => {
   const apiKey = process.env.API_KEY;
@@ -14,45 +13,51 @@ const getAi = () => {
   return new GoogleGenAI({ apiKey });
 }
 
-// Function for text chat and image analysis
+type ContentPart = { text: string } | { inlineData: { mimeType: string; data: string } };
+
+// Function for text and image chat
 export async function generateStream(
   history: Message[],
   newPrompt: string,
-  image?: ImagePart | null
+  image?: { data: string; mimeType: string; }
 ): Promise<AsyncGenerator<GenerateContentResponse>> {
   const ai = getAi();
   
   const contents = history.map(msg => {
-    const parts: any[] = [];
-    if (msg.content) parts.push({ text: msg.content });
-    if (msg.image) {
-      parts.push({
-        inlineData: {
-          data: msg.image.base64,
-          mimeType: msg.image.mimeType,
-        },
-      });
+    const parts: ContentPart[] = [];
+    if (msg.role === 'user' && msg.image) {
+        parts.push({
+            inlineData: {
+                mimeType: msg.image.mimeType,
+                data: msg.image.data
+            }
+        });
+    }
+    if (msg.content) {
+      parts.push({ text: msg.content });
     }
     return { role: msg.role, parts };
   });
 
-  const newUserParts: any[] = [];
-  if (newPrompt) newUserParts.push({ text: newPrompt });
+  const userParts: ContentPart[] = [];
   if (image) {
-    newUserParts.push({
+    userParts.push({
       inlineData: {
-        data: image.base64,
         mimeType: image.mimeType,
+        data: image.data,
       },
     });
   }
+  if (newPrompt) {
+    userParts.push({ text: newPrompt });
+  }
   
-  contents.push({ role: 'user', parts: newUserParts });
+  contents.push({ role: 'user', parts: userParts });
 
   const filteredContents = contents.filter(c => c.parts.length > 0);
 
   const responseStream = await ai.models.generateContentStream({
-    model: chatModel,
+    model: image ? visionModel : chatModel,
     contents: filteredContents,
     config: {
       systemInstruction: 'Você é um assistente de IA prestativo e amigável. Responda em português do Brasil e formate as respostas usando Markdown. Se perguntarem quem te criou ou quem é seu criador, responda que foi Pedro Campos Queiroz.',
@@ -62,79 +67,19 @@ export async function generateStream(
   return responseStream;
 }
 
-// Function for image editing
-export async function editImage(prompt: string, image: ImagePart): Promise<ImagePart> {
-  const ai = getAi();
-  const response = await ai.models.generateContent({
-    model: imageEditModel,
-    contents: {
-      parts: [
-        {
-          inlineData: {
-            data: image.base64,
-            mimeType: image.mimeType,
-          },
-        },
-        { text: prompt },
-      ],
-    },
-    config: {
-      responseModalities: [Modality.IMAGE],
-    },
-  });
-
-  const candidate = response.candidates?.[0];
-  if (candidate?.finishReason && candidate.finishReason !== 'STOP') {
-      throw new Error(`A edição da imagem falhou. Motivo: ${candidate.finishReason}`);
-  }
-
-  const editedImagePart = candidate?.content?.parts?.find(part => part.inlineData);
-  if (editedImagePart?.inlineData) {
-    return {
-      base64: editedImagePart.inlineData.data,
-      mimeType: editedImagePart.inlineData.mimeType || 'image/png',
-    };
-  }
-  
-  console.error('Falha na edição de imagem, resposta da API:', JSON.stringify(response, null, 2));
-  throw new Error('Não foi possível editar a imagem. A resposta da API não continha uma imagem.');
-}
-
-// Function for image generation
-export async function generateImage(prompt: string, aspectRatio: AspectRatio): Promise<ImagePart> {
-  const ai = getAi();
-  const response = await ai.models.generateImages({
-    model: imageGenerationModel,
-    prompt: prompt,
-    config: {
-      numberOfImages: 1,
-      aspectRatio: aspectRatio,
-      outputMimeType: 'image/png',
-    },
-  });
-
-  const generatedImage = response.generatedImages?.[0];
-  if (generatedImage?.image) {
-    return {
-      base64: generatedImage.image.imageBytes,
-      mimeType: generatedImage.image.mimeType || 'image/png',
-    };
-  }
-  
-  console.error('Falha na geração de imagem, resposta da API:', JSON.stringify(response, null, 2));
-  // The generateImages response does not provide a structured `finishReason`. 
-  // We throw a generic but informative error after logging the response.
-  throw new Error('Não foi possível gerar a imagem. Verifique se o seu prompt está de acordo com as políticas de segurança.');
-}
-
-
 export async function generateConversationTitle(
   messages: Message[]
 ): Promise<string> {
   const ai = getAi();
   const context = messages
     .slice(0, 2)
-    .map(msg => `${msg.role === 'user' ? 'Usuário' : 'Assistente'}: ${msg.content}`)
+    .map(msg => {
+        let contentText = msg.content;
+        if (msg.image) {
+            contentText = `[IMAGEM] ${contentText}`.trim();
+        }
+        return `${msg.role === 'user' ? 'Usuário' : 'Assistente'}: ${contentText}`;
+    })
     .join('\n\n');
     
   const prompt = `Analise a seguinte conversa e crie um título curto e descritivo em português, com no máximo 5 palavras. O título deve capturar a essência do assunto. Não adicione aspas nem pontuação final.

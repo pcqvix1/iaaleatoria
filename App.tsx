@@ -4,12 +4,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { Sidebar } from './components/Sidebar';
 import { ChatView } from './components/ChatView';
 import { LoginPage } from './components/LoginPage';
-import { ImageGenerationModal } from './components/ImageGenerationModal';
-import { generateStream, generateConversationTitle, generateImage, editImage } from './services/geminiService';
+import { generateStream, generateConversationTitle } from './services/geminiService';
 import { authService } from './services/authService';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { MenuIcon } from './components/Icons';
-import { type Conversation, type Message, type Theme, type GroundingChunk, type ImagePart, type User, AspectRatio } from './types';
+import { type Conversation, type Message, type Theme, type GroundingChunk, type User } from './types';
 
 const App: React.FC = () => {
   const [theme, setTheme] = useLocalStorage<Theme>('theme', 'dark');
@@ -18,26 +17,33 @@ const App: React.FC = () => {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
-  const [isImageGenerationModalOpen, setIsImageGenerationModalOpen] = useState(false);
 
   const stopGenerationRef = useRef(false);
-  // FIX: Explicitly initialize useRef with undefined. While `useRef()` is valid in modern React,
-  // some configurations might require an initial value, causing the "Expected 1 arguments, but got 0" error.
   const saveTimeoutRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    const user = authService.getCurrentUser();
-    if (user) {
-      setCurrentUser(user);
-      authService.getUserConversations(user.id).then(userConversations => {
-        setConversations(userConversations);
-        if (userConversations.length > 0) {
-          setCurrentConversationId(userConversations[0].id);
+    const initializeApp = async () => {
+      // Check for logged-in user and fetch data
+      const user = authService.getCurrentUser();
+      if (user) {
+        setCurrentUser(user);
+        try {
+          const userConversations = await authService.getUserConversations(user.id);
+          setConversations(userConversations);
+          if (userConversations.length > 0) {
+            setCurrentConversationId(userConversations[0].id);
+          }
+        } catch (error) {
+          console.error("Failed to load user conversations:", error);
+          setConversations([]);
         }
-      }).finally(() => setIsLoading(false));
-    } else {
+      }
+
+      // Finish loading
       setIsLoading(false);
-    }
+    };
+
+    initializeApp();
   }, []);
 
   useEffect(() => {
@@ -127,18 +133,18 @@ const App: React.FC = () => {
   };
 
 
-  const handleSendMessage = async (input: string, image?: ImagePart) => {
+  const handleSendMessage = async (input: string, image?: { data: string; mimeType: string; }) => {
     if (!currentUser || (!input.trim() && !image)) return;
 
     const conversationIdToUpdate = ensureConversationExists();
 
-    const userMessage: Message = { id: uuidv4(), role: 'user', content: input, image };
-    
-    // If there is an image AND text, it's an EDIT request.
-    const isEditRequest = !!image && !!input.trim();
-
-    const aiMessageContent = isEditRequest ? 'Editando sua imagem...' : '';
-    const aiMessage: Message = { id: uuidv4(), role: 'model', content: aiMessageContent, groundingChunks: [] };
+    const userMessage: Message = { 
+        id: uuidv4(), 
+        role: 'user', 
+        content: input,
+        ...(image && { image }),
+    };
+    const aiMessage: Message = { id: uuidv4(), role: 'model', content: '', groundingChunks: [] };
 
     const conversationHistory = conversations.find(c => c.id === conversationIdToUpdate)?.messages ?? [];
 
@@ -150,47 +156,36 @@ const App: React.FC = () => {
     stopGenerationRef.current = false;
 
     try {
-      if (isEditRequest) {
-        // Handle Image Editing
-        const editedImage = await editImage(input, image);
+      const responseStream = await generateStream(conversationHistory, input, image);
+
+      let fullResponse = '';
+      const allChunks = [];
+      for await (const chunk of responseStream) {
+        if (stopGenerationRef.current || currentConversationId !== conversationIdToUpdate) {
+          break;
+        }
+        allChunks.push(chunk);
+        const chunkText = chunk.text;
+        fullResponse += chunkText;
         updateAndSaveConversations(prev => prev.map(c => 
           c.id === conversationIdToUpdate 
-            ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: '', image: editedImage } : m) }
+            ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: fullResponse } : m) }
             : c
         ));
-      } else {
-        // Handle Text/Image Analysis
-        const responseStream = await generateStream(conversationHistory, input, image);
-
-        let fullResponse = '';
-        const allChunks = [];
-        for await (const chunk of responseStream) {
-          if (stopGenerationRef.current || currentConversationId !== conversationIdToUpdate) {
-            break;
-          }
-          allChunks.push(chunk);
-          const chunkText = chunk.text;
-          fullResponse += chunkText;
-          updateAndSaveConversations(prev => prev.map(c => 
-            c.id === conversationIdToUpdate 
-              ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: fullResponse } : m) }
-              : c
-          ));
-        }
-        
-        const groundingChunks = allChunks
-          .flatMap(chunk => chunk.candidates?.[0]?.groundingMetadata?.groundingChunks || [])
-          .filter((chunk): chunk is GroundingChunk => !!(chunk.web && chunk.web.uri && chunk.web.title));
-        
-        const uniqueGroundingChunks = Array.from(new Map(groundingChunks.map(item => [item.web.uri, item])).values());
-        
-        if (uniqueGroundingChunks.length > 0) {
-          updateAndSaveConversations(prev => prev.map(c => 
-            c.id === conversationIdToUpdate 
-              ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, groundingChunks: uniqueGroundingChunks } : m) }
-              : c
-          ));
-        }
+      }
+      
+      const groundingChunks = allChunks
+        .flatMap(chunk => chunk.candidates?.[0]?.groundingMetadata?.groundingChunks || [])
+        .filter((chunk): chunk is GroundingChunk => !!(chunk.web && chunk.web.uri && chunk.web.title));
+      
+      const uniqueGroundingChunks = Array.from(new Map(groundingChunks.map(item => [item.web.uri, item])).values());
+      
+      if (uniqueGroundingChunks.length > 0) {
+        updateAndSaveConversations(prev => prev.map(c => 
+          c.id === conversationIdToUpdate 
+            ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, groundingChunks: uniqueGroundingChunks } : m) }
+            : c
+        ));
       }
       
       // Title Generation for new conversations
@@ -210,59 +205,14 @@ const App: React.FC = () => {
 
     } catch (error) {
       console.error("Gemini API error:", error);
-      const errorMessage = 'Desculpe, encontrei um erro. Por favor, tente novamente.';
+      const errorMessage = error instanceof Error ? error.message : 'Desculpe, encontrei um erro. Por favor, tente novamente.';
       updateAndSaveConversations(prev => prev.map(c => 
         c.id === conversationIdToUpdate 
-          ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: errorMessage, image: undefined } : m) }
-          : c
-      ));
-    } finally {
-      updateAndSaveConversations(prev => prev.map(c => 
-        c.id === conversationIdToUpdate ? { ...c, isTyping: false } : c
-      ));
-    }
-  };
-
-  const handleSendImageGeneration = async (prompt: string, aspectRatio: AspectRatio) => {
-    if (!currentUser || !prompt.trim()) return;
-    setIsImageGenerationModalOpen(false);
-
-    const conversationIdToUpdate = ensureConversationExists();
-    
-    const userMessage: Message = { id: uuidv4(), role: 'user', content: `Gerar imagem: "${prompt}" com proporção ${aspectRatio}` };
-    const aiMessage: Message = { id: uuidv4(), role: 'model', content: 'Gerando sua imagem...' };
-
-    updateAndSaveConversations(prev => prev.map(c =>
-      c.id === conversationIdToUpdate
-        ? { ...c, messages: [...c.messages, userMessage, aiMessage], isTyping: true }
-        : c
-    ));
-
-    try {
-      const newImage = await generateImage(prompt, aspectRatio);
-      updateAndSaveConversations(prev => prev.map(c =>
-        c.id === conversationIdToUpdate
-          ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: '', image: newImage } : m) }
-          : c
-      ));
-
-      const updatedConversation = conversations.find(c => c.id === conversationIdToUpdate);
-      if ((updatedConversation?.messages.length ?? 0) <= 2) {
-        updateAndSaveConversations(prev => prev.map(c =>
-          c.id === conversationIdToUpdate ? { ...c, title: `Imagem: ${prompt.substring(0, 30)}...` } : c
-        ));
-      }
-
-    } catch (error) {
-      console.error("Image generation error:", error);
-      const errorMessage = 'Desculpe, não consegui gerar a imagem. Por favor, tente novamente.';
-       updateAndSaveConversations(prev => prev.map(c =>
-        c.id === conversationIdToUpdate
           ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: errorMessage } : m) }
           : c
       ));
     } finally {
-      updateAndSaveConversations(prev => prev.map(c =>
+      updateAndSaveConversations(prev => prev.map(c => 
         c.id === conversationIdToUpdate ? { ...c, isTyping: false } : c
       ));
     }
@@ -300,7 +250,6 @@ const App: React.FC = () => {
 
   const handleLogin = async (email: string, password: string): Promise<string | null> => {
     try {
-      // authService.login agora lança um erro em qualquer falha, e retorna um usuário em caso de sucesso.
       const user = await authService.login(email, password);
       
       setCurrentUser(user);
@@ -313,11 +262,11 @@ const App: React.FC = () => {
         setCurrentConversationId(null);
       }
       
-      return null; // Sinaliza sucesso
+      return null;
     } catch (error) {
       console.error("Login process failed:", error);
       const message = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido durante o login.';
-      return message; // Retorna a mensagem de erro para exibição.
+      return message;
     }
   };
 
@@ -353,12 +302,6 @@ const App: React.FC = () => {
 
   return (
     <div className="relative h-screen w-full bg-whatsapp-light-bg dark:bg-whatsapp-dark-bg text-black dark:text-white overflow-hidden">
-      {isImageGenerationModalOpen && (
-        <ImageGenerationModal
-          onClose={() => setIsImageGenerationModalOpen(false)}
-          onGenerate={handleSendImageGeneration}
-        />
-      )}
       {currentUser ? (
         <>
           <Sidebar
@@ -387,7 +330,6 @@ const App: React.FC = () => {
             <ChatView 
               conversation={currentConversation}
               onSendMessage={handleSendMessage}
-              onOpenImageGenerationModal={() => setIsImageGenerationModalOpen(true)}
               isTyping={currentConversation?.isTyping ?? false}
               onStopGenerating={handleStopGenerating}
             />

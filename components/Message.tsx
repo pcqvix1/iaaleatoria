@@ -45,9 +45,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
           <>
             {message.image && (
                 <img
-                    src={`data:${message.image.mimeType};base64,${message.image.base64}`}
-                    alt="Conteúdo enviado"
-                    className="mb-2 rounded-lg max-w-full h-auto max-h-80 object-contain"
+                    src={`data:${message.image.mimeType};base64,${message.image.data}`}
+                    alt="Uploaded content"
+                    className="rounded-lg mb-2 max-w-xs max-h-64 object-contain"
                 />
             )}
             {message.content && (

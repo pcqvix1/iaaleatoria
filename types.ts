@@ -1,10 +1,4 @@
-
 export type Role = 'user' | 'model';
-
-export interface ImagePart {
-  base64: string;
-  mimeType: string;
-}
 
 export interface GroundingChunk {
   web: {
@@ -17,7 +11,10 @@ export interface Message {
   id: string;
   role: Role;
   content: string;
-  image?: ImagePart;
+  image?: {
+    data: string; // base64 encoded string
+    mimeType: string;
+  };
   groundingChunks?: GroundingChunk[];
 }
 
@@ -31,11 +28,12 @@ export interface Conversation {
 
 export type Theme = 'light' | 'dark';
 
+// FIX: Exported the AspectRatio type to be used in the ImageGenerationModal.
+export type AspectRatio = '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+
 export interface User {
   id: string;
   name: string;
   email: string;
   password?: string; // Storing for mock purposes
 }
-
-export type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4";

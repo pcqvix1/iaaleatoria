@@ -1,18 +1,17 @@
 
 import React, { useEffect, useRef } from 'react';
-import { type Conversation, type ImagePart } from '../types';
+import { type Conversation } from '../types';
 import { MessageBubble } from './Message';
 import { ChatInput } from './ChatInput';
 
 interface ChatViewProps {
   conversation: Conversation | undefined;
-  onSendMessage: (input: string, image?: ImagePart) => void;
+  onSendMessage: (input: string, image?: { data: string; mimeType: string; }) => void;
   isTyping: boolean;
   onStopGenerating: () => void;
-  onOpenImageGenerationModal: () => void;
 }
 
-export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage, isTyping, onStopGenerating, onOpenImageGenerationModal }) => {
+export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage, isTyping, onStopGenerating }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -46,7 +45,6 @@ export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage,
             onSendMessage={onSendMessage} 
             isGenerating={isTyping} 
             onStopGenerating={onStopGenerating}
-            onOpenImageGenerationModal={onOpenImageGenerationModal}
           />
         </div>
       </div>

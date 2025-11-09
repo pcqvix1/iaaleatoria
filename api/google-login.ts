@@ -33,10 +33,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     
     // If user does not exist, create a new one without a password
-    // Use an empty string '' instead of NULL to avoid NOT NULL constraint errors
+    // Use NULL for the password, as an empty string might violate a CHECK constraint.
     const { rows: newUsers } = await sql`
       INSERT INTO users (name, email, password)
-      VALUES (${name}, ${email}, '')
+      VALUES (${name}, ${email}, NULL)
       RETURNING id, name, email;
     `;
     

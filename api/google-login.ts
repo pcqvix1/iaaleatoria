@@ -16,26 +16,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Check if user already exists and get their password status
     const { rows: existingUsers } = await sql`
-      SELECT id, name, email, (password IS NOT NULL) as haspassword 
+      SELECT id, name, email, password 
       FROM users 
       WHERE email = ${email};
     `;
 
     if (existingUsers.length > 0) {
       const user = existingUsers[0];
-       // The haspassword field comes directly from the query as a boolean
+      // Determine if the user has a password in the application logic for robustness
       return res.status(200).json({
         id: user.id,
         name: user.name,
         email: user.email,
-        hasPassword: user.haspassword,
+        hasPassword: !!user.password,
       });
     }
     
     // If user does not exist, create a new one without a password
+    // Use an empty string '' instead of NULL to avoid NOT NULL constraint errors
     const { rows: newUsers } = await sql`
       INSERT INTO users (name, email, password)
-      VALUES (${name}, ${email}, NULL)
+      VALUES (${name}, ${email}, '')
       RETURNING id, name, email;
     `;
     

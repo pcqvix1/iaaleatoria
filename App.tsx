@@ -324,11 +324,12 @@ const App: React.FC = () => {
   };
 
   const handlePasswordUpdate = () => {
-    if (currentUser) {
-      const updatedUser = { ...currentUser, hasPassword: true };
+    setCurrentUser(prevUser => {
+      if (!prevUser) return prevUser;
+      const updatedUser = { ...prevUser, hasPassword: true };
       localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-      setCurrentUser(updatedUser);
-    }
+      return updatedUser;
+    });
   };
   
   if (isLoading) {

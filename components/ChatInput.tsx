@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { PaperAirplaneIcon, StopIcon, PaperclipIcon, CloseIcon } from './Icons';
 
@@ -24,22 +23,33 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isGeneratin
     }
   }, [input]);
   
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const processImageFile = (file: File) => {
+    if (imageFile) return; // Don't allow multiple images
+
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleImageInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      processImageFile(file);
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const file = e.clipboardData.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+        e.preventDefault();
+        processImageFile(file);
     }
   };
 
   const handleRemoveImage = () => {
-    if (imagePreview) {
-      URL.revokeObjectURL(imagePreview);
-    }
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -90,7 +100,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isGeneratin
         <input 
             type="file" 
             ref={fileInputRef} 
-            onChange={handleImageChange} 
+            onChange={handleImageInputChange} 
             accept="image/*" 
             className="hidden" 
         />
@@ -98,7 +108,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isGeneratin
           onClick={() => fileInputRef.current?.click()}
           aria-label="Anexar imagem"
           className="p-3 text-gray-500 hover:text-gpt-green dark:text-gray-400 dark:hover:text-gpt-green disabled:opacity-50"
-          disabled={isGenerating}
+          disabled={isGenerating || !!imageFile}
         >
           <PaperclipIcon />
         </button>
@@ -107,6 +117,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isGeneratin
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           placeholder="Digite uma mensagem..."
           rows={1}
           className="w-full resize-none bg-transparent py-2.5 text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none max-h-48"

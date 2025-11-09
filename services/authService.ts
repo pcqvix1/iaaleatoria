@@ -27,6 +27,23 @@ export const authService = {
     return user;
   },
 
+  async loginWithGoogle(credential: string): Promise<User> {
+    const response = await fetch(`${API_BASE_URL}/google-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Falha no login com Google.');
+    }
+
+    const user: User = await response.json();
+    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+    return user;
+  },
+
   async register(name: string, email: string, password: string): Promise<User> {
     const response = await fetch(`${API_BASE_URL}/register`, {
         method: 'POST',

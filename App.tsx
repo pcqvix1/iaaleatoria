@@ -1,15 +1,17 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Sidebar } from './components/Sidebar';
 import { ChatView } from './components/ChatView';
 import { LoginPage } from './components/LoginPage';
+import { AccountPage } from './components/AccountPage';
 import { generateStream, generateConversationTitle } from './services/geminiService';
 import { authService } from './services/authService';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { MenuIcon } from './components/Icons';
 import { type Conversation, type Message, type Theme, type GroundingChunk, type User } from './types';
 import { type ChatInputHandles } from './components/ChatInput';
+
+type View = 'chat' | 'account';
 
 const App: React.FC = () => {
   const [theme, setTheme] = useLocalStorage<Theme>('theme', 'dark');
@@ -18,6 +20,7 @@ const App: React.FC = () => {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
+  const [view, setView] = useState<View>('chat');
 
   const stopGenerationRef = useRef(false);
   const saveTimeoutRef = useRef<number | undefined>(undefined);
@@ -105,6 +108,7 @@ const App: React.FC = () => {
   const startNewConversation = () => {
     if (!currentUser) return;
     stopGenerationRef.current = true;
+    setView('chat');
     const newId = uuidv4();
     const newConversation: Conversation = {
       id: newId,
@@ -139,6 +143,7 @@ const App: React.FC = () => {
     if (!currentUser || (!input.trim() && !attachment)) return;
 
     const conversationIdToUpdate = ensureConversationExists();
+    setView('chat');
 
     const userMessage: Message = { 
         id: uuidv4(), 
@@ -240,6 +245,7 @@ const App: React.FC = () => {
         stopGenerationRef.current = true;
     }
     setCurrentConversationId(id);
+    setView('chat');
   };
   
   const clearHistory = () => {
@@ -247,6 +253,7 @@ const App: React.FC = () => {
     stopGenerationRef.current = true;
     updateAndSaveConversations([]);
     setCurrentConversationId(null);
+    setView('chat');
   };
 
   const handleLogin = async (email: string, password: string): Promise<string | null> => {
@@ -262,7 +269,7 @@ const App: React.FC = () => {
       } else {
         setCurrentConversationId(null);
       }
-      
+      setView('chat');
       return null;
     } catch (error) {
       console.error("Login process failed:", error);
@@ -277,6 +284,7 @@ const App: React.FC = () => {
       setCurrentUser(user);
       setConversations([]);
       setCurrentConversationId(null);
+      setView('chat');
       return null;
     } catch (error) {
       if (error instanceof Error) {
@@ -298,6 +306,7 @@ const App: React.FC = () => {
       } else {
         setCurrentConversationId(null);
       }
+      setView('chat');
       return null;
     } catch (error) {
       console.error("Google Login process failed:", error);
@@ -311,6 +320,15 @@ const App: React.FC = () => {
     setCurrentUser(null);
     setConversations([]);
     setCurrentConversationId(null);
+    setView('chat');
+  };
+
+  const handlePasswordUpdate = () => {
+    // Re-fetch user from local storage to get updated `hasPassword` flag
+    const updatedUser = authService.getCurrentUser();
+    if (updatedUser) {
+      setCurrentUser(updatedUser);
+    }
   };
   
   if (isLoading) {
@@ -337,6 +355,7 @@ const App: React.FC = () => {
             onToggleTheme={toggleTheme}
             currentUser={currentUser}
             onLogout={handleLogout}
+            onGoToAccount={() => { setView('account'); setIsSidebarOpen(false); }}
           />
           <main className={`transition-all duration-300 ease-in-out absolute top-0 bottom-0 right-0 flex flex-col left-0 ${isSidebarOpen ? 'md:left-64' : ''}`}>
             {!isSidebarOpen && (
@@ -348,14 +367,23 @@ const App: React.FC = () => {
                 <MenuIcon />
               </button>
             )}
-            <ChatView 
-              conversation={currentConversation}
-              onSendMessage={handleSendMessage}
-              isTyping={currentConversation?.isTyping ?? false}
-              onStopGenerating={handleStopGenerating}
-              onFileDrop={(file) => chatInputRef.current?.setFile(file)}
-              chatInputRef={chatInputRef}
-            />
+            {view === 'chat' ? (
+              <ChatView 
+                conversation={currentConversation}
+                onSendMessage={handleSendMessage}
+                isTyping={currentConversation?.isTyping ?? false}
+                onStopGenerating={handleStopGenerating}
+                onFileDrop={(file) => chatInputRef.current?.setFile(file)}
+                chatInputRef={chatInputRef}
+              />
+            ) : (
+              <AccountPage
+                currentUser={currentUser}
+                onBack={() => setView('chat')}
+                onPasswordUpdate={handlePasswordUpdate}
+                onAccountDeleted={handleLogout}
+              />
+            )}
           </main>
         </>
       ) : (

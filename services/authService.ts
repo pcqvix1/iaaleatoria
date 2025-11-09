@@ -1,4 +1,3 @@
-
 import { type Conversation, type User } from '../types';
 
 // This service is now designed to communicate with a backend API.
@@ -75,6 +74,37 @@ export const authService = {
     } catch (e) {
         return null;
     }
+  },
+
+  async updatePassword(userId: string, newPassword: string, currentPassword?: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, newPassword, currentPassword }),
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Falha ao atualizar a senha.');
+    }
+  },
+
+  async deleteAccount(userId: string): Promise<void> {
+      const response = await fetch(`${API_BASE_URL}/delete-account`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+      });
+
+      if (!response.ok && response.status !== 204) {
+          try {
+              const errorData = await response.json();
+              throw new Error(errorData.message || 'Falha ao excluir a conta.');
+          } catch (e) {
+              throw new Error('Falha ao excluir a conta.');
+          }
+      }
+      // After deleting on the server, log out locally
+      await this.logout();
   },
 
   async getUserConversations(userId: string): Promise<Conversation[]> {

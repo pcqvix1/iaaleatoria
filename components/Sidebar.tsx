@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { type Conversation, type Theme, type User } from '../types';
 import { PlusIcon, ChatIcon, TrashIcon, SunIcon, MoonIcon, MenuIcon, SearchIcon, LogOutIcon, UserCircleIcon } from './Icons';
@@ -15,6 +14,7 @@ interface SidebarProps {
   onToggleTheme: () => void;
   currentUser: User | null;
   onLogout: () => void;
+  onGoToAccount: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -29,6 +29,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleTheme,
   currentUser,
   onLogout,
+  onGoToAccount,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -117,10 +118,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="border-t border-gray-200 dark:border-gray-700/50 my-1" />
           {currentUser && (
             <div className="px-2 py-2">
-              <div className="flex items-center gap-2 mb-2">
+              <button onClick={onGoToAccount} className="w-full flex items-center gap-2 mb-2 p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gpt-light-gray transition-colors">
                 <UserCircleIcon />
                 <span className="font-semibold text-sm">{currentUser.name}</span>
-              </div>
+              </button>
               <SidebarButton icon={<LogOutIcon />} text="Sair" onClick={onLogout} />
             </div>
           )}

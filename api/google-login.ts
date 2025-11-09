@@ -1,12 +1,10 @@
-
 import { sql } from '@vercel/postgres';
-import bcrypt from 'bcryptjs';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
-    return res.status(405).end('Method Not Allowed');
+    return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
   try {
@@ -16,31 +14,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ message: 'Nome e e-mail são obrigatórios.' });
     }
 
-    // Check if user already exists
-    const { rows: existingUsers } = await sql`SELECT * FROM users WHERE email = ${email};`;
+    // Check if user already exists and get their password status
+    const { rows: existingUsers } = await sql`
+      SELECT id, name, email, (password IS NOT NULL) as "hasPassword" 
+      FROM users 
+      WHERE email = ${email};
+    `;
 
     if (existingUsers.length > 0) {
       const user = existingUsers[0];
-      const userToReturn = {
+       // The hasPassword field comes directly from the query as a boolean
+      return res.status(200).json({
         id: user.id,
         name: user.name,
         email: user.email,
-      };
-      return res.status(200).json(userToReturn);
+        hasPassword: user.haspassword,
+      });
     }
     
-    // If user does not exist, create a new one
-    // Create a secure, random password placeholder as it's required by the schema
-    const placeholderPassword = Math.random().toString(36).substring(2) + Date.now().toString(36);
-    const hashedPassword = await bcrypt.hash(placeholderPassword, 10);
-
+    // If user does not exist, create a new one without a password
     const { rows: newUsers } = await sql`
       INSERT INTO users (name, email, password)
-      VALUES (${name}, ${email}, ${hashedPassword})
+      VALUES (${name}, ${email}, NULL)
       RETURNING id, name, email;
     `;
     
-    const newUser = newUsers[0];
+    const newUser = {
+      ...newUsers[0],
+      hasPassword: false,
+    };
     return res.status(201).json(newUser);
 
   } catch (error) {

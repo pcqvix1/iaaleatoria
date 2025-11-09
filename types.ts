@@ -36,5 +36,5 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  password?: string; // Storing for mock purposes
+  hasPassword: boolean;
 }

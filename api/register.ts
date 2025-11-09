@@ -1,4 +1,3 @@
-
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -29,7 +28,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       RETURNING id, name, email;
     `;
     
-    const newUser = rows[0];
+    const newUser = {
+      ...rows[0],
+      hasPassword: true,
+    };
 
     return res.status(201).json(newUser);
 

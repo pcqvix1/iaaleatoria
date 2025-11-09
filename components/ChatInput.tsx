@@ -42,10 +42,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isGeneratin
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const file = e.clipboardData.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-        e.preventDefault();
-        processImageFile(file);
+    // Check for clipboard items. This is more robust for handling images
+    // pasted from sources like screenshot tools or context menus.
+    const items = e.clipboardData.items;
+    // FIX: Replaced for...of with a standard for loop to fix TypeScript errors
+    // where `item` was incorrectly inferred as type `unknown`. This ensures `item`
+    // is correctly typed as `DataTransferItem`.
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          processImageFile(file);
+          return; // Process only the first image found
+        }
+      }
     }
   };
 

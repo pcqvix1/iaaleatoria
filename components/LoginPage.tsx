@@ -1,17 +1,56 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+
+declare global {
+  interface Window {
+    google?: any;
+  }
+}
 
 interface LoginPageProps {
     onLogin: (email: string, password: string) => Promise<string | null>;
     onRegister: (name: string, email: string, password: string) => Promise<string | null>;
+    onLoginWithGoogle: (name: string, email: string) => Promise<string | null>;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister, onLoginWithGoogle }) => {
     const [isLoginView, setIsLoginView] = useState(true);
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+
+    const handleGoogleCallback = async (response: any) => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const token = response.credential;
+            const userObject = JSON.parse(atob(token.split('.')[1]));
+            const { name, email } = userObject;
+    
+            const result = await onLoginWithGoogle(name, email);
+            if (result) {
+                setError(result);
+            }
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Falha ao fazer login com o Google.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    useEffect(() => {
+        if (window.google?.accounts?.id) {
+            window.google.accounts.id.initialize({
+                client_id: '413829830677-q5inimb5f2pj7iu95mkege78hrkt80vo.apps.googleusercontent.com',
+                callback: handleGoogleCallback
+            });
+            window.google.accounts.id.renderButton(
+                document.getElementById('google-signin-button'),
+                { theme: 'outline', size: 'large', type: 'standard', text: 'continue_with', width: '350px' } 
+            );
+        }
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -23,19 +62,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister }) => 
                 ? await onLogin(email, password)
                 : await onRegister(name, email, password);
 
-            // If there's an error message, display it.
-            // On success, result is null and we don't set an error.
-            // The component will unmount on successful login/register.
             if (result) {
                 setError(result);
             }
         } catch (err) {
-            // This will catch any unexpected errors from the auth process
-            // that weren't handled by onLogin/onRegister.
             setError(err instanceof Error ? err.message : 'Ocorreu um erro inesperado.');
         } finally {
-            // This ensures the loading state is always reset, even if an
-            // error occurs or the component is about to unmount.
             setIsLoading(false);
         }
     };
@@ -102,6 +134,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister }) => 
                         </button>
                     </div>
                 </form>
+
+                <div className="relative flex py-2 items-center">
+                    <div className="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
+                    <span className="flex-shrink mx-4 text-xs text-gray-500 dark:text-gray-400 uppercase">Ou</span>
+                    <div className="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
+                </div>
+
+                <div id="google-signin-button" className="flex justify-center"></div>
 
                 <p className="text-sm text-center text-gray-600 dark:text-gray-400">
                     {isLoginView ? 'Não tem uma conta?' : 'Já tem uma conta?'}

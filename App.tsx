@@ -285,6 +285,26 @@ const App: React.FC = () => {
     }
   };
 
+  const handleLoginWithGoogle = async (name: string, email: string): Promise<string | null> => {
+    try {
+      const user = await authService.loginWithGoogle(name, email);
+      setCurrentUser(user);
+      const userConversations = await authService.getUserConversations(user.id);
+      setConversations(userConversations);
+
+      if (userConversations.length > 0) {
+        setCurrentConversationId(userConversations[0].id);
+      } else {
+        setCurrentConversationId(null);
+      }
+      return null;
+    } catch (error) {
+      console.error("Google Login process failed:", error);
+      const message = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido durante o login com o Google.';
+      return message;
+    }
+  };
+
   const handleLogout = async () => {
     await authService.logout();
     setCurrentUser(null);
@@ -336,7 +356,11 @@ const App: React.FC = () => {
           </main>
         </>
       ) : (
-        <LoginPage onLogin={handleLogin} onRegister={handleRegister} />
+        <LoginPage 
+          onLogin={handleLogin} 
+          onRegister={handleRegister} 
+          onLoginWithGoogle={handleLoginWithGoogle}
+        />
       )}
     </div>
   );

@@ -23,7 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (existingUsers.length > 0) {
       const user = existingUsers[0];
-      // Determine if the user has a password in the application logic for robustness
+      // Determine if the user has a password. An empty string or NULL means no password.
       return res.status(200).json({
         id: user.id,
         name: user.name,
@@ -32,11 +32,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
     
-    // If user does not exist, create a new one without a password
-    // Use NULL for the password, as an empty string might violate a CHECK constraint.
+    // If user does not exist, create a new one without a password.
+    // Use an empty string '' for the password to satisfy potential NOT NULL constraints.
     const { rows: newUsers } = await sql`
       INSERT INTO users (name, email, password)
-      VALUES (${name}, ${email}, NULL)
+      VALUES (${name}, ${email}, '')
       RETURNING id, name, email;
     `;
     

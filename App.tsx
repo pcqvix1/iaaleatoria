@@ -191,11 +191,10 @@ const App: React.FC = () => {
       }
       
       // Title Generation for new conversations
-      const updatedConversation = conversations.find(c => c.id === conversationIdToUpdate);
-      const isFirstExchange = (updatedConversation?.messages.length ?? 0) <= 2;
+      const isFirstExchange = conversationHistory.length === 0;
       
       if (isFirstExchange) {
-        const titleContextMessages = updatedConversation?.messages ?? [userMessage];
+        const titleContextMessages: Message[] = [userMessage, { ...aiMessage, content: fullResponse }];
         generateConversationTitle(titleContextMessages).then(newTitle => {
           if (newTitle) {
             updateAndSaveConversations(prev => prev.map(c =>

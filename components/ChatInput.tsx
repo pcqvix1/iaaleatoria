@@ -44,6 +44,8 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
             setFilePreviewUrl(reader.result as string);
         };
         reader.readAsDataURL(file);
+    } else {
+        setFilePreviewUrl(null);
     }
   };
 
@@ -139,7 +141,6 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
             type="file" 
             ref={fileInputRef} 
             onChange={handleFileInputChange} 
-            accept="*" 
             className="hidden" 
         />
         <button

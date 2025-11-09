@@ -10,17 +10,15 @@
   },
   "dependencies": {
     "@google/genai": "^1.26.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "uuid": "^13.0.0",
     "react-markdown": "8.0.7",
     "remark-gfm": "3.0.1",
-    "@react-oauth/google": "1.12.1",
-    "@vercel/postgres": "^0.10.0",
     "bcryptjs": "^3.0.3",
-    "@vercel/node": "^5.5.5",
-    "google-auth-library": "^10.5.0",
-    "crypto": "^1.0.1"
+    "next": "^16.0.1",
+    "@vercel/postgres": "^0.10.0",
+    "@vercel/node": "^5.5.5"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

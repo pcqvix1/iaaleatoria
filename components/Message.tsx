@@ -2,8 +2,11 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import RemarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { type Message } from '../types';
-import { FileIcon } from './Icons';
+import { FileIcon, CopyIcon, CheckIcon } from './Icons';
 
 interface MessageBubbleProps {
   message: Message;
@@ -62,6 +65,58 @@ const AttachmentDisplay: React.FC<{ attachment: NonNullable<Message['attachment'
   );
 };
 
+const CodeBlock: React.FC<any> = ({ node, inline, className, children, ...props }) => {
+    const [isCopied, setIsCopied] = useState(false);
+    const match = /language-(\w+)/.exec(className || '');
+    const codeString = String(children).replace(/\n$/, '');
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(codeString).then(() => {
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        });
+    };
+
+    if (inline) {
+        // Let prose handle inline code styling for consistency
+        return (
+            <code className={className} {...props}>
+                {children}
+            </code>
+        );
+    }
+
+    return match ? (
+        <div className="relative my-2 rounded-md text-sm bg-[#1E1E1E] font-sans">
+            <div className="flex items-center justify-between px-4 py-1.5 bg-black bg-opacity-30 rounded-t-md">
+                <span className="text-gray-400 lowercase">{match[1]}</span>
+                <button 
+                    onClick={handleCopy} 
+                    className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors text-xs"
+                    aria-label="Copiar código"
+                >
+                    {isCopied ? <CheckIcon /> : <CopyIcon />}
+                    {isCopied ? 'Copiado!' : 'Copiar'}
+                </button>
+            </div>
+            <SyntaxHighlighter
+                style={vscDarkPlus}
+                language={match[1]}
+                PreTag="div"
+                customStyle={{ margin: 0, padding: '1rem', background: 'transparent', overflow: 'auto' }}
+                codeTagProps={{ style: { fontFamily: 'inherit' } }}
+                {...props}
+            >
+                {codeString}
+            </SyntaxHighlighter>
+        </div>
+    ) : (
+        // For code blocks without a language, provide a simple, clean block
+        <pre className="my-2 p-4 bg-gray-100 dark:bg-gray-800 text-black dark:text-white rounded-md overflow-x-auto text-sm" {...props}>
+            <code>{children}</code>
+        </pre>
+    );
+};
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
   const [showSources, setShowSources] = useState(false);
@@ -87,8 +142,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
           <>
             {message.attachment && <AttachmentDisplay attachment={message.attachment} />}
             {message.content && (
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown remarkPlugins={[RemarkGfm]}>
+              <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-blockquote:my-2 prose-table:my-2">
+                <ReactMarkdown 
+                  remarkPlugins={[RemarkGfm]}
+                  rehypePlugins={[rehypeRaw]}
+                  components={{
+                    code: CodeBlock,
+                  }}
+                >
                   {message.content}
                 </ReactMarkdown>
               </div>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Sidebar } from './components/Sidebar';
@@ -10,6 +11,7 @@ import { useLocalStorage } from './hooks/useLocalStorage';
 import { MenuIcon } from './components/Icons';
 import { type Conversation, type Message, type Theme, type GroundingChunk, type User } from './types';
 import { type ChatInputHandles } from './components/ChatInput';
+import { type GenerateContentResponse } from '@google/genai';
 
 type View = 'chat' | 'account';
 
@@ -141,10 +143,10 @@ const App: React.FC = () => {
 
   const handleSendMessage = async (input: string, attachment?: { data: string; mimeType: string; name: string; }) => {
     if (!currentUser || (!input.trim() && !attachment)) return;
-
+  
     const conversationIdToUpdate = ensureConversationExists();
     setView('chat');
-
+  
     const userMessage: Message = { 
         id: uuidv4(), 
         role: 'user', 
@@ -152,69 +154,105 @@ const App: React.FC = () => {
         ...(attachment && { attachment }),
     };
     const aiMessage: Message = { id: uuidv4(), role: 'model', content: '', groundingChunks: [] };
-
+  
     const conversationHistory = conversations.find(c => c.id === conversationIdToUpdate)?.messages ?? [];
-
+  
     updateAndSaveConversations(prev => prev.map(c => 
       c.id === conversationIdToUpdate 
         ? { ...c, messages: [...c.messages, userMessage, aiMessage], isTyping: true }
         : c
     ));
     stopGenerationRef.current = false;
-
+  
     try {
       const responseStream = await generateStream(conversationHistory, input, attachment);
-
+  
       let fullResponse = '';
-      const allChunks = [];
+      const allChunks: GenerateContentResponse[] = [];
+  
       for await (const chunk of responseStream) {
         if (stopGenerationRef.current || currentConversationId !== conversationIdToUpdate) {
           break;
         }
         allChunks.push(chunk);
         const chunkText = chunk.text;
-        fullResponse += chunkText;
-        updateAndSaveConversations(prev => prev.map(c => 
-          c.id === conversationIdToUpdate 
-            ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: fullResponse } : m) }
-            : c
-        ));
+        if (typeof chunkText === 'string') {
+            fullResponse += chunkText;
+            updateAndSaveConversations(prev => prev.map(c => 
+              c.id === conversationIdToUpdate 
+                ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: fullResponse } : m) }
+                : c
+            ));
+        }
       }
       
+      const lastChunk = allChunks[allChunks.length - 1];
+      const finishReason = lastChunk?.candidates?.[0]?.finishReason;
+      let interruptionMessage = '';
+
+      if (finishReason && finishReason !== 'STOP') {
+        switch (finishReason) {
+            case 'SAFETY':
+                interruptionMessage = '\n\n---\n**A resposta foi interrompida por motivos de segurança.**';
+                break;
+            case 'MAX_TOKENS':
+                interruptionMessage = '\n\n---\n**A resposta foi interrompida porque atingiu o comprimento máximo.**';
+                break;
+            case 'RECITATION':
+                 interruptionMessage = '\n\n---\n**A resposta foi interrompida para evitar a repetição de conteúdo protegido por direitos autorais.**';
+                break;
+            default:
+                 interruptionMessage = `\n\n---\n**A resposta foi interrompida. (Motivo: ${finishReason})**`;
+                break;
+        }
+      }
+
+      const finalContent = fullResponse + interruptionMessage;
+
       const groundingChunks = allChunks
         .flatMap(chunk => chunk.candidates?.[0]?.groundingMetadata?.groundingChunks || [])
         .filter((chunk): chunk is GroundingChunk => !!(chunk.web && chunk.web.uri && chunk.web.title));
       
       const uniqueGroundingChunks = Array.from(new Map(groundingChunks.map(item => [item.web.uri, item])).values());
-      
-      if (uniqueGroundingChunks.length > 0) {
-        updateAndSaveConversations(prev => prev.map(c => 
-          c.id === conversationIdToUpdate 
-            ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, groundingChunks: uniqueGroundingChunks } : m) }
-            : c
-        ));
-      }
-      
-      // Title Generation for new conversations
-      const isFirstExchange = conversationHistory.length === 0;
-      
-      if (isFirstExchange) {
-        const titleContextMessages: Message[] = [userMessage, { ...aiMessage, content: fullResponse }];
-        generateConversationTitle(titleContextMessages).then(newTitle => {
-          if (newTitle) {
-            updateAndSaveConversations(prev => prev.map(c =>
-              c.id === conversationIdToUpdate ? { ...c, title: newTitle } : c
-            ));
-          }
-        });
-      }
 
+      // Perform final update with the complete message
+      updateAndSaveConversations(prev => prev.map(c => {
+        if (c.id === conversationIdToUpdate) {
+            const updatedMessages = c.messages.map(m => 
+                m.id === aiMessage.id 
+                    ? { 
+                        ...m, 
+                        content: finalContent, 
+                        groundingChunks: uniqueGroundingChunks.length > 0 ? uniqueGroundingChunks : m.groundingChunks 
+                      } 
+                    : m
+            );
+            return { ...c, messages: updatedMessages };
+        }
+        return c;
+      }));
+
+      // Generate title only on successful, complete responses
+      if (!interruptionMessage) {
+          const isFirstExchange = conversationHistory.length === 0;
+          if (isFirstExchange) {
+            const titleContextMessages: Message[] = [userMessage, { ...aiMessage, content: finalContent }];
+            generateConversationTitle(titleContextMessages).then(newTitle => {
+              if (newTitle) {
+                updateAndSaveConversations(prev => prev.map(c =>
+                  c.id === conversationIdToUpdate ? { ...c, title: newTitle } : c
+                ));
+              }
+            });
+          }
+      }
+  
     } catch (error) {
       console.error("Gemini API error:", error);
       const errorMessage = error instanceof Error ? error.message : 'Desculpe, encontrei um erro. Por favor, tente novamente.';
       updateAndSaveConversations(prev => prev.map(c => 
         c.id === conversationIdToUpdate 
-          ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: errorMessage } : m) }
+          ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: `**Erro:** ${errorMessage}` } : m) }
           : c
       ));
     } finally {

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Sidebar } from './components/Sidebar';
@@ -234,24 +235,18 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSendFromCanvas = (contentType: 'code' | 'latex', generatedCode: string, lang: string) => {
+  const handleSendFromCanvas = (code: string, lang: string) => {
     const conversationIdToUpdate = ensureConversationExists();
     
     const userMessage: Message = { 
         id: uuidv4(), 
         role: 'user', 
-        content: `Conteúdo de ${contentType} gerado a partir do Canvas.`,
-    };
-
-    const modelMessage: Message = { 
-        id: uuidv4(), 
-        role: 'model', 
-        content: `\`\`\`${lang}\n${generatedCode}\n\`\`\``,
+        content: `Aqui está o código do Canvas:\n\n\`\`\`${lang}\n${code}\n\`\`\``,
     };
 
     updateAndSaveConversations(prev => prev.map(c => 
       c.id === conversationIdToUpdate 
-        ? { ...c, messages: [...c.messages, userMessage, modelMessage] }
+        ? { ...c, messages: [...c.messages, userMessage] }
         : c
     ));
     

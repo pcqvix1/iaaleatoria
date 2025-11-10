@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
-import { PaperAirplaneIcon, StopIcon, PaperclipIcon, CloseIcon, FileIcon } from './Icons';
+import { PaperAirplaneIcon, StopIcon, PaperclipIcon, CloseIcon, FileIcon, CanvasIcon } from './Icons';
 
 declare const pdfjsLib: any;
 declare const mammoth: any;
@@ -10,13 +10,14 @@ interface ChatInputProps {
   onSendMessage: (input: string, attachment?: { data: string; mimeType: string; name: string; }) => void;
   isGenerating: boolean;
   onStopGenerating: () => void;
+  onGoToCanvas: () => void;
 }
 
 export type ChatInputHandles = {
   setFile: (file: File) => void;
 };
 
-export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendMessage, isGenerating, onStopGenerating }, ref) => {
+export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendMessage, isGenerating, onStopGenerating, onGoToCanvas }, ref) => {
   const [input, setInput] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
@@ -260,6 +261,14 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
           disabled={isGenerating || !!attachedFile}
         >
           <PaperclipIcon />
+        </button>
+        <button
+          onClick={onGoToCanvas}
+          aria-label="Abrir Canvas"
+          className="p-3 text-gray-500 hover:text-gpt-green dark:text-gray-400 dark:hover:text-gpt-green disabled:opacity-50"
+          disabled={isGenerating || !!attachedFile}
+        >
+          <CanvasIcon />
         </button>
         <textarea
           ref={textareaRef}

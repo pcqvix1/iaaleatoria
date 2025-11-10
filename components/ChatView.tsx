@@ -11,10 +11,11 @@ interface ChatViewProps {
   isTyping: boolean;
   onStopGenerating: () => void;
   onFileDrop: (file: File) => void;
+  onGoToCanvas: () => void;
   chatInputRef: React.RefObject<ChatInputHandles>;
 }
 
-export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage, isTyping, onStopGenerating, onFileDrop, chatInputRef }) => {
+export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage, isTyping, onStopGenerating, onFileDrop, onGoToCanvas, chatInputRef }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -91,6 +92,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage,
             onSendMessage={onSendMessage} 
             isGenerating={isTyping} 
             onStopGenerating={onStopGenerating}
+            onGoToCanvas={onGoToCanvas}
           />
         </div>
       </div>

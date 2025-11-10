@@ -1,9 +1,9 @@
-
-import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
-import { type Message } from '../types';
+import { GoogleGenAI, GenerateContentResponse, Modality } from '@google/genai';
+import { type Message, type AspectRatio } from '../types';
 
 const chatModel = 'gemini-2.5-flash';
 const visionModel = 'gemini-2.5-flash';
+const imageEditModel = 'gemini-2.5-flash-image';
 
 const getAi = () => {
   const apiKey = process.env.API_KEY;
@@ -121,5 +121,90 @@ Título Sugerido:`;
   } catch (error) {
     console.error("Error generating title:", error);
     return "Conversa";
+  }
+}
+
+export async function generateCanvasContent(prompt: string, type: 'code' | 'latex'): Promise<string> {
+    const ai = getAi();
+    let systemInstruction = '';
+    
+    if (type === 'code') {
+        systemInstruction = "Você é um especialista em programação. Gere apenas o código para o pedido do usuário. Determine a linguagem a partir do prompt. Não inclua explicações, apenas o bloco de código bruto em markdown. Exemplo: ```python...```.";
+    } else if (type === 'latex') {
+        systemInstruction = "Você é um especialista em LaTeX. Gere apenas o código de um documento LaTeX completo e executável para o pedido do usuário. Não inclua explicações, apenas o código LaTeX bruto dentro de um bloco de código markdown. Exemplo: ```latex...```.";
+    }
+
+    try {
+        const response = await ai.models.generateContent({
+            model: chatModel,
+            contents: prompt,
+            config: {
+                systemInstruction: systemInstruction,
+                temperature: 0.1,
+            },
+        });
+        return response.text;
+    } catch (error) {
+        console.error(`Error generating canvas content for type ${type}:`, error);
+        throw new Error(`Failed to generate content: ${error instanceof Error ? error.message : String(error)}`);
+    }
+}
+
+
+export async function generateImageForCanvas(
+  prompt: string,
+  aspectRatio: AspectRatio, // This can be used in the future if the API supports it
+): Promise<string> {
+  const ai = getAi();
+  try {
+    const response = await ai.models.generateContent({
+        model: imageEditModel,
+        contents: {
+            parts: [{ text: prompt }],
+        },
+        config: {
+            responseModalities: [Modality.IMAGE],
+        },
+    });
+    const firstPart = response.candidates?.[0]?.content?.parts?.[0];
+    if (firstPart && 'inlineData' in firstPart && firstPart.inlineData) {
+        return firstPart.inlineData.data;
+    }
+    throw new Error('Nenhuma imagem foi gerada. A resposta pode ter sido bloqueada.');
+  } catch(error) {
+      console.error("Error generating image for canvas:", error);
+      throw new Error(`Falha ao gerar imagem: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+
+export async function editImageWithMask(
+  baseImage: { data: string; mimeType: string },
+  mask: { data: string }, // Mask is a base64 png
+  prompt: string
+): Promise<string> {
+  const ai = getAi();
+  try {
+    const response = await ai.models.generateContent({
+        model: imageEditModel,
+        contents: {
+            parts: [
+                { inlineData: { data: baseImage.data, mimeType: baseImage.mimeType } },
+                { text: prompt },
+                { inlineData: { data: mask.data, mimeType: 'image/png' } },
+            ],
+        },
+        config: {
+            responseModalities: [Modality.IMAGE],
+        },
+    });
+    const firstPart = response.candidates?.[0]?.content?.parts?.[0];
+    if (firstPart && 'inlineData' in firstPart && firstPart.inlineData) {
+        return firstPart.inlineData.data;
+    }
+    throw new Error('Nenhuma imagem foi retornada da edição. A resposta pode ter sido bloqueada.');
+  } catch(error) {
+    console.error("Error editing image with mask:", error);
+    throw new Error(`Falha ao editar imagem: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

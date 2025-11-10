@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Sidebar } from './components/Sidebar';
 import { ChatView } from './components/ChatView';
+import { CanvasView } from './components/CanvasView';
 import { LoginPage } from './components/LoginPage';
 import { AccountPage } from './components/AccountPage';
 import { generateStream, generateConversationTitle } from './services/geminiService';
@@ -11,7 +12,7 @@ import { MenuIcon } from './components/Icons';
 import { type Conversation, type Message, type Theme, type GroundingChunk, type User } from './types';
 import { type ChatInputHandles } from './components/ChatInput';
 
-type View = 'chat' | 'account';
+type View = 'chat' | 'account' | 'canvas';
 
 const App: React.FC = () => {
   const [theme, setTheme] = useLocalStorage<Theme>('theme', 'dark');
@@ -223,6 +224,30 @@ const App: React.FC = () => {
       ));
     }
   };
+
+  const handleSendFromCanvas = (contentType: 'code' | 'latex', generatedCode: string, lang: string) => {
+    const conversationIdToUpdate = ensureConversationExists();
+    
+    const userMessage: Message = { 
+        id: uuidv4(), 
+        role: 'user', 
+        content: `Conteúdo de ${contentType} gerado a partir do Canvas.`,
+    };
+
+    const modelMessage: Message = { 
+        id: uuidv4(), 
+        role: 'model', 
+        content: `\`\`\`${lang}\n${generatedCode}\n\`\`\``,
+    };
+
+    updateAndSaveConversations(prev => prev.map(c => 
+      c.id === conversationIdToUpdate 
+        ? { ...c, messages: [...c.messages, userMessage, modelMessage] }
+        : c
+    ));
+    
+    setView('chat');
+  };
   
   const handleStopGenerating = () => {
     stopGenerationRef.current = true;
@@ -331,6 +356,41 @@ const App: React.FC = () => {
       return updatedUser;
     });
   };
+
+  const renderCurrentView = () => {
+    switch(view) {
+        case 'chat':
+            return (
+                <ChatView 
+                    conversation={currentConversation}
+                    onSendMessage={handleSendMessage}
+                    isTyping={currentConversation?.isTyping ?? false}
+                    onStopGenerating={handleStopGenerating}
+                    onFileDrop={(file) => chatInputRef.current?.setFile(file)}
+                    onGoToCanvas={() => setView('canvas')}
+                    chatInputRef={chatInputRef}
+                />
+            );
+        case 'account':
+            return (
+                <AccountPage
+                    currentUser={currentUser!}
+                    onBack={() => setView('chat')}
+                    onPasswordUpdate={handlePasswordUpdate}
+                    onAccountDeleted={handleLogout}
+                />
+            );
+        case 'canvas':
+            return (
+                <CanvasView 
+                    onBack={() => setView('chat')}
+                    onSendToChat={handleSendFromCanvas}
+                />
+            );
+        default:
+            return null;
+    }
+  };
   
   if (isLoading) {
     return (
@@ -357,8 +417,9 @@ const App: React.FC = () => {
             currentUser={currentUser}
             onLogout={handleLogout}
             onGoToAccount={() => { setView('account'); setIsSidebarOpen(false); }}
+            onGoToCanvas={() => { setView('canvas'); setIsSidebarOpen(false); }}
           />
-          {!isSidebarOpen && view === 'chat' && (
+          {!isSidebarOpen && view !== 'canvas' && (
             <button 
               onClick={() => setIsSidebarOpen(true)}
               className="absolute top-2 left-2 z-30 p-2 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700/50"
@@ -368,23 +429,7 @@ const App: React.FC = () => {
             </button>
           )}
           <main className={`transition-all duration-300 ease-in-out absolute top-0 bottom-0 right-0 flex flex-col left-0 ${isSidebarOpen ? 'md:left-64' : ''}`}>
-            {view === 'chat' ? (
-              <ChatView 
-                conversation={currentConversation}
-                onSendMessage={handleSendMessage}
-                isTyping={currentConversation?.isTyping ?? false}
-                onStopGenerating={handleStopGenerating}
-                onFileDrop={(file) => chatInputRef.current?.setFile(file)}
-                chatInputRef={chatInputRef}
-              />
-            ) : (
-              <AccountPage
-                currentUser={currentUser}
-                onBack={() => setView('chat')}
-                onPasswordUpdate={handlePasswordUpdate}
-                onAccountDeleted={handleLogout}
-              />
-            )}
+            {renderCurrentView()}
           </main>
         </>
       ) : (

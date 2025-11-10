@@ -1,4 +1,5 @@
 
+
 import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { type Message } from '../types';
 
@@ -64,22 +65,21 @@ export async function generateStream(
         },
       });
     } else { // Text file
-      let fileContext = '';
-      if (attachment.data) {
-        fileContext = `O usuário anexou um arquivo chamado "${attachment.name}". O conteúdo do arquivo está abaixo. Analise o conteúdo e responda à pergunta do usuário.\n\n--- INÍCIO DO ARQUIVO ---\n${attachment.data}\n--- FIM DO ARQUIVO ---`;
-      } else {
-        fileContext = `[O usuário anexou o arquivo "${attachment.name}" (${attachment.mimeType}), mas não foi possível ler o seu conteúdo. Informe educadamente ao usuário que você não pode acessar o conteúdo deste tipo de arquivo e que ele pode tentar com arquivos de texto simples (como .txt, .md, .csv) ou copiar e colar o texto do documento na conversa.]`;
-      }
+      const fileContext = attachment.data
+        ? `Use o conteúdo do arquivo "${attachment.name}" abaixo para responder à pergunta do usuário.\n\n--- INÍCIO ---\n${attachment.data}\n--- FIM ---`
+        : `[O usuário anexou o arquivo "${attachment.name}" (${attachment.mimeType}), mas não foi possível ler o seu conteúdo. Informe educadamente ao usuário que você não pode acessar o conteúdo deste tipo de arquivo.]`;
       userParts.push({ text: fileContext });
     }
   }
 
-  // Always add the user's typed prompt as a separate part if it exists
-  if (newPrompt) {
-    userParts.push({ text: `Pergunta do usuário: ${newPrompt}` });
+  // Adicione o prompt do usuário como uma parte separada, sem prefixos.
+  if (newPrompt.trim()) {
+    userParts.push({ text: newPrompt });
   }
   
-  contents.push({ role: 'user', parts: userParts });
+  if(userParts.length > 0) {
+    contents.push({ role: 'user', parts: userParts });
+  }
 
   const filteredContents = contents.filter(c => c.parts.length > 0 && c.parts.some(p => ('text' in p && p.text.trim()) || 'inlineData' in p));
   const modelToUse = attachment?.mimeType.startsWith('image/') ? visionModel : chatModel;

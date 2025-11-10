@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, GenerateContentResponse, Modality } from '@google/genai';
 import { type Message, type AspectRatio } from '../types';
 
@@ -14,6 +15,30 @@ const getAi = () => {
 }
 
 type ContentPart = { text: string } | { inlineData: { mimeType: string; data: string } };
+
+
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delay = 1000,
+  backoff = 2
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries > 0) {
+      const errorMessage = (error instanceof Error ? error.message : String(error)).toLowerCase();
+      // Check for common retryable error messages from the Gemini API
+      if (errorMessage.includes("503") || errorMessage.includes("unavailable") || errorMessage.includes("overloaded")) {
+        console.warn(`API call failed, retrying in ${delay}ms... (${retries} retries left)`);
+        await new Promise(res => setTimeout(res, delay));
+        return retryWithBackoff(fn, retries - 1, delay * backoff, backoff);
+      }
+    }
+    // If not a retryable error or no retries left, throw the original error
+    throw error;
+  }
+}
 
 // Function for text and file chat
 export async function generateStream(
@@ -66,13 +91,16 @@ export async function generateStream(
   const filteredContents = contents.filter(c => c.parts.length > 0);
   const modelToUse = attachment?.mimeType.startsWith('image/') ? visionModel : chatModel;
 
-  const responseStream = await ai.models.generateContentStream({
-    model: modelToUse,
-    contents: filteredContents,
-    config: {
-      systemInstruction: 'Você é um assistente de IA prestativo e amigável. Responda em português do Brasil e formate as respostas usando Markdown. Se perguntarem quem te criou ou quem é seu criador, responda que foi Pedro Campos Queiroz.',
-    },
-  });
+  // FIX: Explicitly type `responseStream` to resolve the type inference issue.
+  const responseStream: AsyncGenerator<GenerateContentResponse> = await retryWithBackoff(() => 
+      ai.models.generateContentStream({
+        model: modelToUse,
+        contents: filteredContents,
+        config: {
+          systemInstruction: 'Você é um assistente de IA prestativo e amigável. Responda em português do Brasil e formate as respostas usando Markdown. Se perguntarem quem te criou ou quem é seu criador, responda que foi Pedro Campos Queiroz.',
+        },
+      })
+  );
 
   return responseStream;
 }
@@ -102,7 +130,8 @@ ${context}
 Título Sugerido:`;
 
   try {
-    const response = await ai.models.generateContent({
+    // FIX: Explicitly type `response` to resolve the type inference issue.
+    const response: GenerateContentResponse = await ai.models.generateContent({
       model: chatModel,
       contents: prompt,
       config: {
@@ -135,14 +164,16 @@ export async function generateCanvasContent(prompt: string, type: 'code' | 'late
     }
 
     try {
-        const response = await ai.models.generateContent({
-            model: chatModel,
-            contents: prompt,
-            config: {
-                systemInstruction: systemInstruction,
-                temperature: 0.1,
-            },
-        });
+        const response: GenerateContentResponse = await retryWithBackoff(() => 
+            ai.models.generateContent({
+                model: chatModel,
+                contents: prompt,
+                config: {
+                    systemInstruction: systemInstruction,
+                    temperature: 0.1,
+                },
+            })
+        );
         return response.text;
     } catch (error) {
         console.error(`Error generating canvas content for type ${type}:`, error);
@@ -157,15 +188,18 @@ export async function generateImageForCanvas(
 ): Promise<string> {
   const ai = getAi();
   try {
-    const response = await ai.models.generateContent({
-        model: imageEditModel,
-        contents: {
-            parts: [{ text: prompt }],
-        },
-        config: {
-            responseModalities: [Modality.IMAGE],
-        },
-    });
+    // FIX: Explicitly type `response` to resolve the type inference issue.
+    const response: GenerateContentResponse = await retryWithBackoff(() => 
+        ai.models.generateContent({
+            model: imageEditModel,
+            contents: {
+                parts: [{ text: prompt }],
+            },
+            config: {
+                responseModalities: [Modality.IMAGE],
+            },
+        })
+    );
     const firstPart = response.candidates?.[0]?.content?.parts?.[0];
     if (firstPart && 'inlineData' in firstPart && firstPart.inlineData) {
         return firstPart.inlineData.data;
@@ -185,19 +219,22 @@ export async function editImageWithMask(
 ): Promise<string> {
   const ai = getAi();
   try {
-    const response = await ai.models.generateContent({
-        model: imageEditModel,
-        contents: {
-            parts: [
-                { inlineData: { data: baseImage.data, mimeType: baseImage.mimeType } },
-                { text: prompt },
-                { inlineData: { data: mask.data, mimeType: 'image/png' } },
-            ],
-        },
-        config: {
-            responseModalities: [Modality.IMAGE],
-        },
-    });
+    // FIX: Explicitly type `response` to resolve the type inference issue.
+    const response: GenerateContentResponse = await retryWithBackoff(() => 
+        ai.models.generateContent({
+            model: imageEditModel,
+            contents: {
+                parts: [
+                    { inlineData: { data: baseImage.data, mimeType: baseImage.mimeType } },
+                    { text: prompt },
+                    { inlineData: { data: mask.data, mimeType: 'image/png' } },
+                ],
+            },
+            config: {
+                responseModalities: [Modality.IMAGE],
+            },
+        })
+    );
     const firstPart = response.candidates?.[0]?.content?.parts?.[0];
     if (firstPart && 'inlineData' in firstPart && firstPart.inlineData) {
         return firstPart.inlineData.data;

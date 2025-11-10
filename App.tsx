@@ -212,7 +212,16 @@ const App: React.FC = () => {
 
     } catch (error) {
       console.error("Gemini API error:", error);
-      const errorMessage = error instanceof Error ? error.message : 'Desculpe, encontrei um erro. Por favor, tente novamente.';
+      let errorMessage = 'Desculpe, encontrei um erro. Por favor, tente novamente.';
+      if (error instanceof Error) {
+        const lowerCaseMessage = error.message.toLowerCase();
+        if (lowerCaseMessage.includes("overloaded") || lowerCaseMessage.includes("unavailable") || lowerCaseMessage.includes("503")) {
+          errorMessage = "O serviço está sobrecarregado no momento. Por favor, tente novamente em alguns instantes.";
+        } else {
+          errorMessage = `Ocorreu um erro: ${error.message}`;
+        }
+      }
+      
       updateAndSaveConversations(prev => prev.map(c => 
         c.id === conversationIdToUpdate 
           ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: errorMessage } : m) }

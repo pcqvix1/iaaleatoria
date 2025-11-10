@@ -25,16 +25,26 @@ export async function generateStream(
   
   const contents = history.map(msg => {
     const parts: ContentPart[] = [];
-    if (msg.role === 'user' && msg.attachment && msg.attachment.mimeType.startsWith('image/')) {
-        parts.push({
-            inlineData: {
-                mimeType: msg.attachment.mimeType,
-                data: msg.attachment.data
-            }
-        });
+    let textContent = msg.content;
+
+    // Handle attachments from history, reconstructing the context for text files
+    if (msg.attachment) {
+        if (msg.attachment.mimeType.startsWith('image/')) {
+            parts.push({
+                inlineData: {
+                    mimeType: msg.attachment.mimeType,
+                    data: msg.attachment.data
+                }
+            });
+        } else if (msg.role === 'user' && msg.attachment.data) {
+             textContent = `O usuário anexou um arquivo chamado "${msg.attachment.name}". O conteúdo do arquivo está abaixo, entre os separadores. Analise o conteúdo e responda à pergunta do usuário.\n\n--- INÍCIO DO ARQUIVO ---\n${msg.attachment.data}\n--- FIM DO ARQUIVO ---\n\nPergunta do usuário: ${msg.content}`;
+        } else if (msg.role === 'user') {
+             textContent = `${msg.content}\n\n[O usuário anexou o arquivo "${msg.attachment.name}" (${msg.attachment.mimeType}), mas não foi possível ler o seu conteúdo. Informe educadamente ao usuário que você não pode acessar o conteúdo deste tipo de arquivo e que ele pode tentar com arquivos de texto simples (como .txt, .md, .csv) ou copiar e colar o texto do documento na conversa.]`;
+        }
     }
-    if (msg.content) {
-      parts.push({ text: msg.content });
+
+    if (textContent) {
+      parts.push({ text: textContent });
     }
     return { role: msg.role, parts };
   });

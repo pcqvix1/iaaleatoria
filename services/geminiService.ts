@@ -25,9 +25,7 @@ export async function generateStream(
   
   const contents = history.map(msg => {
     const parts: ContentPart[] = [];
-    let textContent = msg.content;
 
-    // Handle attachments from history, reconstructing the context for text files
     if (msg.attachment) {
         if (msg.attachment.mimeType.startsWith('image/')) {
             parts.push({
@@ -36,22 +34,27 @@ export async function generateStream(
                     data: msg.attachment.data
                 }
             });
-        } else if (msg.role === 'user' && msg.attachment.data) {
-             textContent = `O usuário anexou um arquivo chamado "${msg.attachment.name}". O conteúdo do arquivo está abaixo, entre os separadores. Analise o conteúdo e responda à pergunta do usuário.\n\n--- INÍCIO DO ARQUIVO ---\n${msg.attachment.data}\n--- FIM DO ARQUIVO ---\n\nPergunta do usuário: ${msg.content}`;
-        } else if (msg.role === 'user') {
-             textContent = `${msg.content}\n\n[O usuário anexou o arquivo "${msg.attachment.name}" (${msg.attachment.mimeType}), mas não foi possível ler o seu conteúdo. Informe educadamente ao usuário que você não pode acessar o conteúdo deste tipo de arquivo e que ele pode tentar com arquivos de texto simples (como .txt, .md, .csv) ou copiar e colar o texto do documento na conversa.]`;
+        } else { // Text file
+            let fileContext = '';
+            if (msg.role === 'user' && msg.attachment.data) {
+                fileContext = `Contexto de um arquivo anterior chamado "${msg.attachment.name}":\n\n--- CONTEÚDO ---\n${msg.attachment.data}\n--- FIM ---`;
+            } else if (msg.role === 'user') {
+                fileContext = `[O usuário tinha anexado o arquivo "${msg.attachment.name}" mas o conteúdo não foi lido.]`;
+            }
+            if (fileContext) {
+                parts.push({ text: fileContext });
+            }
         }
     }
 
-    if (textContent) {
-      parts.push({ text: textContent });
+    if (msg.content) {
+      parts.push({ text: msg.content });
     }
     return { role: msg.role, parts };
   });
 
   const userParts: ContentPart[] = [];
-  let finalUserPrompt = newPrompt;
-
+  
   if (attachment) {
     if (attachment.mimeType.startsWith('image/')) {
       userParts.push({
@@ -60,20 +63,25 @@ export async function generateStream(
           data: attachment.data,
         },
       });
-    } else if (attachment.data) { 
-      finalUserPrompt = `O usuário anexou um arquivo chamado "${attachment.name}". O conteúdo do arquivo está abaixo, entre os separadores. Analise o conteúdo e responda à pergunta do usuário.\n\n--- INÍCIO DO ARQUIVO ---\n${attachment.data}\n--- FIM DO ARQUIVO ---\n\nPergunta do usuário: ${newPrompt}`;
-    } else { 
-      finalUserPrompt = `${newPrompt}\n\n[O usuário anexou o arquivo "${attachment.name}" (${attachment.mimeType}), mas não foi possível ler o seu conteúdo. Informe educadamente ao usuário que você não pode acessar o conteúdo deste tipo de arquivo e que ele pode tentar com arquivos de texto simples (como .txt, .md, .csv) ou copiar e colar o texto do documento na conversa.]`;
+    } else { // Text file
+      let fileContext = '';
+      if (attachment.data) {
+        fileContext = `O usuário anexou um arquivo chamado "${attachment.name}". O conteúdo do arquivo está abaixo. Analise o conteúdo e responda à pergunta do usuário.\n\n--- INÍCIO DO ARQUIVO ---\n${attachment.data}\n--- FIM DO ARQUIVO ---`;
+      } else {
+        fileContext = `[O usuário anexou o arquivo "${attachment.name}" (${attachment.mimeType}), mas não foi possível ler o seu conteúdo. Informe educadamente ao usuário que você não pode acessar o conteúdo deste tipo de arquivo e que ele pode tentar com arquivos de texto simples (como .txt, .md, .csv) ou copiar e colar o texto do documento na conversa.]`;
+      }
+      userParts.push({ text: fileContext });
     }
   }
 
-  if (finalUserPrompt) {
-    userParts.push({ text: finalUserPrompt });
+  // Always add the user's typed prompt as a separate part if it exists
+  if (newPrompt) {
+    userParts.push({ text: `Pergunta do usuário: ${newPrompt}` });
   }
   
   contents.push({ role: 'user', parts: userParts });
 
-  const filteredContents = contents.filter(c => c.parts.length > 0);
+  const filteredContents = contents.filter(c => c.parts.length > 0 && c.parts.some(p => ('text' in p && p.text.trim()) || 'inlineData' in p));
   const modelToUse = attachment?.mimeType.startsWith('image/') ? visionModel : chatModel;
 
   const responseStream = await ai.models.generateContentStream({

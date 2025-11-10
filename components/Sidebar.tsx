@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { type Conversation, type Theme, type User } from '../types';
-import { PlusIcon, ChatIcon, TrashIcon, SunIcon, MoonIcon, MenuIcon, SearchIcon, LogOutIcon, UserCircleIcon, CanvasIcon } from './Icons';
+import { PlusIcon, ChatIcon, TrashIcon, SunIcon, MoonIcon, MenuIcon, SearchIcon, LogOutIcon, UserCircleIcon } from './Icons';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -15,7 +15,6 @@ interface SidebarProps {
   currentUser: User | null;
   onLogout: () => void;
   onGoToAccount: () => void;
-  onGoToCanvas: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -31,7 +30,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentUser,
   onLogout,
   onGoToAccount,
-  onGoToCanvas,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -111,7 +109,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
 
         <div className="border-t border-gray-200 dark:border-gray-700 p-2 space-y-1">
-          <SidebarButton icon={<CanvasIcon />} text="Canvas" onClick={onGoToCanvas} />
           <SidebarButton icon={<TrashIcon />} text="Limpar conversas" onClick={onClearHistory} />
           <SidebarButton 
             icon={theme === 'dark' ? <SunIcon /> : <MoonIcon />} 

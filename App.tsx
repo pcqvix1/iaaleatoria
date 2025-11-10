@@ -1,9 +1,7 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Sidebar } from './components/Sidebar';
 import { ChatView } from './components/ChatView';
-import { CanvasView } from './components/CanvasView';
 import { LoginPage } from './components/LoginPage';
 import { AccountPage } from './components/AccountPage';
 import { generateStream, generateConversationTitle } from './services/geminiService';
@@ -13,7 +11,7 @@ import { MenuIcon } from './components/Icons';
 import { type Conversation, type Message, type Theme, type GroundingChunk, type User } from './types';
 import { type ChatInputHandles } from './components/ChatInput';
 
-type View = 'chat' | 'account' | 'canvas';
+type View = 'chat' | 'account';
 
 const App: React.FC = () => {
   const [theme, setTheme] = useLocalStorage<Theme>('theme', 'dark');
@@ -213,16 +211,7 @@ const App: React.FC = () => {
 
     } catch (error) {
       console.error("Gemini API error:", error);
-      let errorMessage = 'Desculpe, encontrei um erro. Por favor, tente novamente.';
-      if (error instanceof Error) {
-        const lowerCaseMessage = error.message.toLowerCase();
-        if (lowerCaseMessage.includes("overloaded") || lowerCaseMessage.includes("unavailable") || lowerCaseMessage.includes("503")) {
-          errorMessage = "O serviço está sobrecarregado no momento. Por favor, tente novamente em alguns instantes.";
-        } else {
-          errorMessage = `Ocorreu um erro: ${error.message}`;
-        }
-      }
-      
+      const errorMessage = error instanceof Error ? error.message : 'Desculpe, encontrei um erro. Por favor, tente novamente.';
       updateAndSaveConversations(prev => prev.map(c => 
         c.id === conversationIdToUpdate 
           ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: errorMessage } : m) }
@@ -233,24 +222,6 @@ const App: React.FC = () => {
         c.id === conversationIdToUpdate ? { ...c, isTyping: false } : c
       ));
     }
-  };
-
-  const handleSendFromCanvas = (code: string, lang: string) => {
-    const conversationIdToUpdate = ensureConversationExists();
-    
-    const userMessage: Message = { 
-        id: uuidv4(), 
-        role: 'user', 
-        content: `Aqui está o código do Canvas:\n\n\`\`\`${lang}\n${code}\n\`\`\``,
-    };
-
-    updateAndSaveConversations(prev => prev.map(c => 
-      c.id === conversationIdToUpdate 
-        ? { ...c, messages: [...c.messages, userMessage] }
-        : c
-    ));
-    
-    setView('chat');
   };
   
   const handleStopGenerating = () => {
@@ -360,41 +331,6 @@ const App: React.FC = () => {
       return updatedUser;
     });
   };
-
-  const renderCurrentView = () => {
-    switch(view) {
-        case 'chat':
-            return (
-                <ChatView 
-                    conversation={currentConversation}
-                    onSendMessage={handleSendMessage}
-                    isTyping={currentConversation?.isTyping ?? false}
-                    onStopGenerating={handleStopGenerating}
-                    onFileDrop={(file) => chatInputRef.current?.setFile(file)}
-                    onGoToCanvas={() => setView('canvas')}
-                    chatInputRef={chatInputRef}
-                />
-            );
-        case 'account':
-            return (
-                <AccountPage
-                    currentUser={currentUser!}
-                    onBack={() => setView('chat')}
-                    onPasswordUpdate={handlePasswordUpdate}
-                    onAccountDeleted={handleLogout}
-                />
-            );
-        case 'canvas':
-            return (
-                <CanvasView 
-                    onBack={() => setView('chat')}
-                    onSendToChat={handleSendFromCanvas}
-                />
-            );
-        default:
-            return null;
-    }
-  };
   
   if (isLoading) {
     return (
@@ -421,9 +357,8 @@ const App: React.FC = () => {
             currentUser={currentUser}
             onLogout={handleLogout}
             onGoToAccount={() => { setView('account'); setIsSidebarOpen(false); }}
-            onGoToCanvas={() => { setView('canvas'); setIsSidebarOpen(false); }}
           />
-          {!isSidebarOpen && view !== 'canvas' && (
+          {!isSidebarOpen && view === 'chat' && (
             <button 
               onClick={() => setIsSidebarOpen(true)}
               className="absolute top-2 left-2 z-30 p-2 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700/50"
@@ -433,7 +368,23 @@ const App: React.FC = () => {
             </button>
           )}
           <main className={`transition-all duration-300 ease-in-out absolute top-0 bottom-0 right-0 flex flex-col left-0 ${isSidebarOpen ? 'md:left-64' : ''}`}>
-            {renderCurrentView()}
+            {view === 'chat' ? (
+              <ChatView 
+                conversation={currentConversation}
+                onSendMessage={handleSendMessage}
+                isTyping={currentConversation?.isTyping ?? false}
+                onStopGenerating={handleStopGenerating}
+                onFileDrop={(file) => chatInputRef.current?.setFile(file)}
+                chatInputRef={chatInputRef}
+              />
+            ) : (
+              <AccountPage
+                currentUser={currentUser}
+                onBack={() => setView('chat')}
+                onPasswordUpdate={handlePasswordUpdate}
+                onAccountDeleted={handleLogout}
+              />
+            )}
           </main>
         </>
       ) : (

@@ -20,8 +20,7 @@
     "@vercel/postgres": "^0.10.0",
     "@vercel/node": "^5.5.5",
     "react-syntax-highlighter": "^16.1.0",
-    "rehype-raw": "6.1.1",
-    "fabric": "5.3.0"
+    "rehype-raw": "6.1.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

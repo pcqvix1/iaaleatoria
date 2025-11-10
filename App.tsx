@@ -27,6 +27,7 @@ const App: React.FC = () => {
   const stopGenerationRef = useRef(false);
   const saveTimeoutRef = useRef<number | undefined>(undefined);
   const chatInputRef = useRef<ChatInputHandles>(null);
+  const animationFrameRef = useRef<number>();
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -157,6 +158,7 @@ const App: React.FC = () => {
   
     const conversationHistory = conversations.find(c => c.id === conversationIdToUpdate)?.messages ?? [];
   
+    // Initial state update with user message and empty AI message
     updateAndSaveConversations(prev => prev.map(c => 
       c.id === conversationIdToUpdate 
         ? { ...c, messages: [...c.messages, userMessage, aiMessage], isTyping: true }
@@ -167,8 +169,10 @@ const App: React.FC = () => {
     try {
       const responseStream = await generateStream(conversationHistory, input, attachment);
   
-      let fullResponse = '';
+      let fullResponseText = '';
       const allChunks: GenerateContentResponse[] = [];
+      let updateScheduled = false;
+      let buffer = '';
   
       for await (const chunk of responseStream) {
         if (stopGenerationRef.current || currentConversationId !== conversationIdToUpdate) {
@@ -176,16 +180,32 @@ const App: React.FC = () => {
         }
         allChunks.push(chunk);
         const chunkText = chunk.text;
+
         if (typeof chunkText === 'string') {
-            fullResponse += chunkText;
-            updateAndSaveConversations(prev => prev.map(c => 
-              c.id === conversationIdToUpdate 
-                ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: fullResponse } : m) }
-                : c
-            ));
+          buffer += chunkText;
+          if (!updateScheduled) {
+            updateScheduled = true;
+            animationFrameRef.current = requestAnimationFrame(() => {
+              fullResponseText += buffer;
+              buffer = '';
+              updateAndSaveConversations(prev => prev.map(c => 
+                c.id === conversationIdToUpdate 
+                  ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: fullResponseText } : m) }
+                  : c
+              ));
+              updateScheduled = false;
+            });
+          }
         }
       }
       
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      
+      // One final update to ensure all buffered content and metadata is set
+      fullResponseText += buffer;
+
       const lastChunk = allChunks[allChunks.length - 1];
       const finishReason = lastChunk?.candidates?.[0]?.finishReason;
       let interruptionMessage = '';
@@ -207,7 +227,7 @@ const App: React.FC = () => {
         }
       }
 
-      const finalContent = fullResponse + interruptionMessage;
+      const finalContent = fullResponseText + interruptionMessage;
 
       const groundingChunks = allChunks
         .flatMap(chunk => chunk.candidates?.[0]?.groundingMetadata?.groundingChunks || [])
@@ -215,7 +235,6 @@ const App: React.FC = () => {
       
       const uniqueGroundingChunks = Array.from(new Map(groundingChunks.map(item => [item.web.uri, item])).values());
 
-      // Perform final update with the complete message
       updateAndSaveConversations(prev => prev.map(c => {
         if (c.id === conversationIdToUpdate) {
             const updatedMessages = c.messages.map(m => 
@@ -227,24 +246,20 @@ const App: React.FC = () => {
                       } 
                     : m
             );
-            return { ...c, messages: updatedMessages };
+            return { ...c, messages: updatedMessages, isTyping: false };
         }
         return c;
       }));
-
-      // Generate title only on successful, complete responses
-      if (!interruptionMessage) {
-          const isFirstExchange = conversationHistory.length === 0;
-          if (isFirstExchange) {
-            const titleContextMessages: Message[] = [userMessage, { ...aiMessage, content: finalContent }];
-            generateConversationTitle(titleContextMessages).then(newTitle => {
-              if (newTitle) {
-                updateAndSaveConversations(prev => prev.map(c =>
-                  c.id === conversationIdToUpdate ? { ...c, title: newTitle } : c
-                ));
-              }
-            });
+      
+      if (!interruptionMessage && conversationHistory.length === 0) {
+        const titleContextMessages: Message[] = [userMessage, { ...aiMessage, content: finalContent }];
+        generateConversationTitle(titleContextMessages).then(newTitle => {
+          if (newTitle) {
+            updateAndSaveConversations(prev => prev.map(c =>
+              c.id === conversationIdToUpdate ? { ...c, title: newTitle } : c
+            ));
           }
+        });
       }
   
     } catch (error) {
@@ -252,12 +267,8 @@ const App: React.FC = () => {
       const errorMessage = error instanceof Error ? error.message : 'Desculpe, encontrei um erro. Por favor, tente novamente.';
       updateAndSaveConversations(prev => prev.map(c => 
         c.id === conversationIdToUpdate 
-          ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: `**Erro:** ${errorMessage}` } : m) }
+          ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: `**Erro:** ${errorMessage}` } : m), isTyping: false }
           : c
-      ));
-    } finally {
-      updateAndSaveConversations(prev => prev.map(c => 
-        c.id === conversationIdToUpdate ? { ...c, isTyping: false } : c
       ));
     }
   };

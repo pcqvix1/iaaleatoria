@@ -16,14 +16,29 @@ interface ChatViewProps {
 
 export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage, isTyping, onStopGenerating, onFileDrop, chatInputRef }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const autoScrollRef = useRef(true);
   const [isDragging, setIsDragging] = useState(false);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const handleScroll = () => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      const isAtBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 100;
+      autoScrollRef.current = isAtBottom;
+    }
   };
 
   useEffect(() => {
-    scrollToBottom();
+    const lastMessage = conversation?.messages[conversation?.messages.length - 1];
+
+    // Always scroll down for user's own messages.
+    if (lastMessage?.role === 'user') {
+      autoScrollRef.current = true;
+    }
+    
+    if (autoScrollRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [conversation?.messages]);
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
@@ -72,7 +87,11 @@ export const ChatView: React.FC<ChatViewProps> = ({ conversation, onSendMessage,
       <header className="relative w-full p-2 text-center text-sm text-gray-600 dark:text-gray-400 border-b border-gray-300 dark:border-gray-700/50 flex-shrink-0">
         feito por Pedro Campos Queiroz
       </header>
-      <div className="flex-1 overflow-y-auto p-4 md:p-6">
+      <div 
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-4 md:p-6"
+      >
         <div className="max-w-4xl mx-auto space-y-2">
           {conversation?.messages && conversation.messages.length > 0 ? (
             conversation.messages.map((message) => (

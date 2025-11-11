@@ -89,6 +89,8 @@ export async function generateStream(
     contents: filteredContents,
     config: {
       systemInstruction: 'Você é um assistente de IA prestativo e amigável. Responda em português do Brasil e formate as respostas usando Markdown. Se perguntarem quem te criou ou quem é seu criador, responda que foi Pedro Campos Queiroz.',
+      maxOutputTokens: 8192,
+      thinkingConfig: { thinkingBudget: 1024 },
     },
   });
 

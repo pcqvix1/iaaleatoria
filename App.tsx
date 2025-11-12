@@ -167,8 +167,25 @@ const App: React.FC = () => {
   
     try {
       const responseStream = await generateStream(conversationHistory, input, attachment);
-  
       const allChunks: GenerateContentResponse[] = [];
+      let accumulatedText = '';
+      let lastUpdateTime = 0;
+      const UPDATE_INTERVAL = 50; // ms
+
+      const updateContent = (content: string) => {
+        updateAndSaveConversations(prev => prev.map(c => 
+          c.id === conversationIdToUpdate 
+            ? { 
+                ...c, 
+                messages: c.messages.map(m => 
+                  m.id === aiMessage.id 
+                    ? { ...m, content } 
+                    : m
+                ) 
+              }
+            : c
+        ));
+      };
       
       for await (const chunk of responseStream) {
         if (stopGenerationRef.current || currentConversationId !== conversationIdToUpdate) {
@@ -178,18 +195,12 @@ const App: React.FC = () => {
         const chunkText = chunk.text;
 
         if (typeof chunkText === 'string' && chunkText.length > 0) {
-          updateAndSaveConversations(prev => prev.map(c => 
-            c.id === conversationIdToUpdate 
-              ? { 
-                  ...c, 
-                  messages: c.messages.map(m => 
-                    m.id === aiMessage.id 
-                      ? { ...m, content: m.content + chunkText } 
-                      : m
-                  ) 
-                }
-              : c
-          ));
+          accumulatedText += chunkText;
+          const now = Date.now();
+          if (now - lastUpdateTime > UPDATE_INTERVAL) {
+            updateContent(accumulatedText);
+            lastUpdateTime = now;
+          }
         }
       }
       
@@ -220,18 +231,17 @@ const App: React.FC = () => {
       
       const uniqueGroundingChunks = Array.from(new Map(groundingChunks.map(item => [item.web.uri, item])).values());
 
-      let finalContent = '';
+      const finalContentWithInterruption = accumulatedText + interruptionMessage;
+
       updateAndSaveConversations(prev => prev.map(c => {
         if (c.id === conversationIdToUpdate) {
             const updatedMessages = c.messages.map(m => {
                 if (m.id === aiMessage.id) {
-                    const newContent = m.content + interruptionMessage;
-                    finalContent = newContent;
                     return { 
                         ...m, 
-                        content: newContent, 
+                        content: finalContentWithInterruption,
                         groundingChunks: uniqueGroundingChunks.length > 0 ? uniqueGroundingChunks : m.groundingChunks 
-                      };
+                    };
                 }
                 return m;
             });
@@ -240,8 +250,8 @@ const App: React.FC = () => {
         return c;
       }));
       
-      if (!interruptionMessage && conversationHistory.length === 0 && finalContent) {
-        const titleContextMessages: Message[] = [userMessage, { ...aiMessage, content: finalContent }];
+      if (!interruptionMessage && conversationHistory.length === 0 && finalContentWithInterruption) {
+        const titleContextMessages: Message[] = [userMessage, { ...aiMessage, content: finalContentWithInterruption }];
         generateConversationTitle(titleContextMessages).then(newTitle => {
           if (newTitle) {
             updateAndSaveConversations(prev => prev.map(c =>

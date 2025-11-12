@@ -292,6 +292,9 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
           rows={1}
           className="w-full resize-none bg-transparent py-2.5 text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none max-h-48"
           disabled={isGenerating}
+          spellCheck="false"
+          autoCorrect="off"
+          autoCapitalize="off"
         />
         {isGenerating ? (
           <button

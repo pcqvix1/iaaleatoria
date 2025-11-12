@@ -29,7 +29,7 @@ export interface Conversation {
 
 export type Theme = 'light' | 'dark';
 
-// FIX: Exported the AspectRatio type to be used in the ImageGenerationModal.
+// FIX: Add and export AspectRatio type for use in the ImageGenerationModal component.
 export type AspectRatio = '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
 
 export interface User {

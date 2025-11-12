@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Sidebar } from './components/Sidebar';
@@ -392,7 +393,7 @@ const App: React.FC = () => {
       return updatedUser;
     });
   };
-  
+
   if (isLoading) {
     return (
         <div className="flex-1 flex h-screen w-screen items-center justify-center bg-whatsapp-light-bg dark:bg-whatsapp-dark-bg">
@@ -438,7 +439,7 @@ const App: React.FC = () => {
                 onFileDrop={(file) => chatInputRef.current?.setFile(file)}
                 chatInputRef={chatInputRef}
               />
-            ) : (
+            ) : ( // view === 'account'
               <AccountPage
                 currentUser={currentUser}
                 onBack={() => setView('chat')}

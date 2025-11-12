@@ -88,9 +88,8 @@ export async function generateStream(
     model: modelToUse,
     contents: filteredContents,
     config: {
-      systemInstruction: 'Você é um assistente de IA prestativo e amigável. Responda em português do Brasil e formate as respostas usando Markdown. Se perguntarem quem te criou ou quem é seu criador, responda que foi Pedro Campos Queiroz.',
+      systemInstruction: 'Você é um assistente de IA prestativo e amigável. Suas respostas devem ser em português do Brasil. Formate suas respostas usando a sintaxe Markdown. IMPORTANTE: NUNCA envolva a resposta inteira em um bloco de código de markdown (com ```). A interface do usuário lida com a formatação de blocos de código individuais para trechos de código, mas a resposta principal não deve ser um bloco de código. Não inclua palavras como "markdown" ou "copiar" no início de blocos de código. Se perguntarem quem te criou ou quem é seu criador, responda que foi Pedro Campos Queiroz.',
       maxOutputTokens: 8192,
-      thinkingConfig: { thinkingBudget: 1024 },
     },
   });
 

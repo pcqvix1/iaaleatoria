@@ -6,8 +6,6 @@ declare const mammoth: any;
 declare const XLSX: any;
 declare const JSZip: any;
 
-const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15 MB
-
 interface ChatInputProps {
   onSendMessage: (input: string, attachment?: { data: string; mimeType: string; name: string; }) => void;
   isGenerating: boolean;
@@ -49,25 +47,6 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
   
   const processFile = (file: File) => {
     if (attachedFile) return;
-
-    if (file.size > MAX_FILE_SIZE) {
-      alert(`O arquivo é muito grande. O tamanho máximo é de ${MAX_FILE_SIZE / 1024 / 1024} MB.`);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-
-    const isImage = file.type.startsWith('image/');
-    const isText = file.type.startsWith('text/') || ['application/json', 'application/javascript', 'application/xml'].includes(file.type) || file.name.endsWith('.md') || file.name.endsWith('.csv');
-    const isPdf = file.type === 'application/pdf';
-    const isDocx = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.endsWith('.docx');
-    const isXlsx = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || file.name.endsWith('.xlsx');
-    const isPptx = file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' || file.name.endsWith('.pptx');
-
-    if (!isImage && !isText && !isPdf && !isDocx && !isXlsx && !isPptx) {
-      alert(`Tipo de arquivo não suportado: ${file.type || 'desconhecido'}.`);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
 
     setAttachedFile(file);
     if (file.type.startsWith('image/')) {
@@ -292,9 +271,6 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
           rows={1}
           className="w-full resize-none bg-transparent py-2.5 text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none max-h-48"
           disabled={isGenerating}
-          spellCheck="false"
-          autoCorrect="off"
-          autoCapitalize="off"
         />
         {isGenerating ? (
           <button

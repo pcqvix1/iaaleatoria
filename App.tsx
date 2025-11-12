@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Sidebar } from './components/Sidebar';
@@ -28,6 +27,7 @@ const App: React.FC = () => {
   const stopGenerationRef = useRef(false);
   const saveTimeoutRef = useRef<number | undefined>(undefined);
   const chatInputRef = useRef<ChatInputHandles>(null);
+  const animationFrameRef = useRef<number>();
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -158,6 +158,7 @@ const App: React.FC = () => {
   
     const conversationHistory = conversations.find(c => c.id === conversationIdToUpdate)?.messages ?? [];
   
+    // Initial state update with user message and empty AI message
     updateAndSaveConversations(prev => prev.map(c => 
       c.id === conversationIdToUpdate 
         ? { ...c, messages: [...c.messages, userMessage, aiMessage], isTyping: true }
@@ -167,26 +168,12 @@ const App: React.FC = () => {
   
     try {
       const responseStream = await generateStream(conversationHistory, input, attachment);
+  
+      let fullResponseText = '';
       const allChunks: GenerateContentResponse[] = [];
-      let accumulatedText = '';
-      let lastUpdateTime = 0;
-      const UPDATE_INTERVAL = 50; // ms
-
-      const updateContent = (content: string) => {
-        updateAndSaveConversations(prev => prev.map(c => 
-          c.id === conversationIdToUpdate 
-            ? { 
-                ...c, 
-                messages: c.messages.map(m => 
-                  m.id === aiMessage.id 
-                    ? { ...m, content } 
-                    : m
-                ) 
-              }
-            : c
-        ));
-      };
-      
+      let updateScheduled = false;
+      let buffer = '';
+  
       for await (const chunk of responseStream) {
         if (stopGenerationRef.current || currentConversationId !== conversationIdToUpdate) {
           break;
@@ -194,16 +181,31 @@ const App: React.FC = () => {
         allChunks.push(chunk);
         const chunkText = chunk.text;
 
-        if (typeof chunkText === 'string' && chunkText.length > 0) {
-          accumulatedText += chunkText;
-          const now = Date.now();
-          if (now - lastUpdateTime > UPDATE_INTERVAL) {
-            updateContent(accumulatedText);
-            lastUpdateTime = now;
+        if (typeof chunkText === 'string') {
+          buffer += chunkText;
+          if (!updateScheduled) {
+            updateScheduled = true;
+            animationFrameRef.current = requestAnimationFrame(() => {
+              fullResponseText += buffer;
+              buffer = '';
+              updateAndSaveConversations(prev => prev.map(c => 
+                c.id === conversationIdToUpdate 
+                  ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: fullResponseText } : m) }
+                  : c
+              ));
+              updateScheduled = false;
+            });
           }
         }
       }
       
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      
+      // One final update to ensure all buffered content and metadata is set
+      fullResponseText += buffer;
+
       const lastChunk = allChunks[allChunks.length - 1];
       const finishReason = lastChunk?.candidates?.[0]?.finishReason;
       let interruptionMessage = '';
@@ -225,33 +227,32 @@ const App: React.FC = () => {
         }
       }
 
+      const finalContent = fullResponseText + interruptionMessage;
+
       const groundingChunks = allChunks
         .flatMap(chunk => chunk.candidates?.[0]?.groundingMetadata?.groundingChunks || [])
         .filter((chunk): chunk is GroundingChunk => !!(chunk.web && chunk.web.uri && chunk.web.title));
       
       const uniqueGroundingChunks = Array.from(new Map(groundingChunks.map(item => [item.web.uri, item])).values());
 
-      const finalContentWithInterruption = accumulatedText + interruptionMessage;
-
       updateAndSaveConversations(prev => prev.map(c => {
         if (c.id === conversationIdToUpdate) {
-            const updatedMessages = c.messages.map(m => {
-                if (m.id === aiMessage.id) {
-                    return { 
+            const updatedMessages = c.messages.map(m => 
+                m.id === aiMessage.id 
+                    ? { 
                         ...m, 
-                        content: finalContentWithInterruption,
+                        content: finalContent, 
                         groundingChunks: uniqueGroundingChunks.length > 0 ? uniqueGroundingChunks : m.groundingChunks 
-                    };
-                }
-                return m;
-            });
+                      } 
+                    : m
+            );
             return { ...c, messages: updatedMessages, isTyping: false };
         }
         return c;
       }));
       
-      if (!interruptionMessage && conversationHistory.length === 0 && finalContentWithInterruption) {
-        const titleContextMessages: Message[] = [userMessage, { ...aiMessage, content: finalContentWithInterruption }];
+      if (!interruptionMessage && conversationHistory.length === 0) {
+        const titleContextMessages: Message[] = [userMessage, { ...aiMessage, content: finalContent }];
         generateConversationTitle(titleContextMessages).then(newTitle => {
           if (newTitle) {
             updateAndSaveConversations(prev => prev.map(c =>
@@ -263,31 +264,7 @@ const App: React.FC = () => {
   
     } catch (error) {
       console.error("Gemini API error:", error);
-      let errorMessage = 'Desculpe, um erro inesperado ocorreu. Por favor, tente novamente.';
-
-      if (error instanceof Error) {
-        let rawMessage = error.message;
-        try {
-          // Attempt to parse the raw message as it might be a stringified JSON
-          const errorJson = JSON.parse(rawMessage);
-          
-          // The error structure seems to be { error: { message: 'stringified json' | 'string' } }
-          let innerMessage = errorJson?.error?.message || rawMessage;
-
-          // Check if the inner message is also a stringified JSON (double stringified)
-          try {
-            const innerJson = JSON.parse(innerMessage);
-            errorMessage = innerJson?.error?.message || innerMessage;
-          } catch (e) {
-            // innerMessage was not JSON, it's the final message.
-            errorMessage = innerMessage;
-          }
-        } catch (e) {
-          // rawMessage was not a JSON string, use it as is.
-          errorMessage = rawMessage;
-        }
-      }
-      
+      const errorMessage = error instanceof Error ? error.message : 'Desculpe, encontrei um erro. Por favor, tente novamente.';
       updateAndSaveConversations(prev => prev.map(c => 
         c.id === conversationIdToUpdate 
           ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: `**Erro:** ${errorMessage}` } : m), isTyping: false }
@@ -403,7 +380,7 @@ const App: React.FC = () => {
       return updatedUser;
     });
   };
-
+  
   if (isLoading) {
     return (
         <div className="flex-1 flex h-screen w-screen items-center justify-center bg-whatsapp-light-bg dark:bg-whatsapp-dark-bg">
@@ -449,7 +426,7 @@ const App: React.FC = () => {
                 onFileDrop={(file) => chatInputRef.current?.setFile(file)}
                 chatInputRef={chatInputRef}
               />
-            ) : ( // view === 'account'
+            ) : (
               <AccountPage
                 currentUser={currentUser}
                 onBack={() => setView('chat')}

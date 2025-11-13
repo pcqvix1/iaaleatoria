@@ -83,8 +83,8 @@ export async function generateStream(
 
   const filteredContents = contents.filter(c => c.parts.length > 0 && c.parts.some(p => ('text' in p && p.text.trim()) || 'inlineData' in p));
   const modelToUse = attachment?.mimeType.startsWith('image/') ? visionModel : chatModel;
-
-  const responseStream = await ai.models.generateContentStream({
+  
+  const streamRequest = {
     model: modelToUse,
     contents: filteredContents,
     config: {
@@ -92,9 +92,32 @@ export async function generateStream(
       maxOutputTokens: 8192,
       thinkingConfig: { thinkingBudget: 1024 },
     },
-  });
+  };
 
-  return responseStream;
+  const MAX_RETRIES = 3;
+  const INITIAL_DELAY = 1000; // 1 second
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const responseStream = await ai.models.generateContentStream(streamRequest);
+      return responseStream; // Success, return the stream
+    } catch (error) {
+      const isOverloadedError = error instanceof Error && (error.message.includes('503') || error.message.toLowerCase().includes('overloaded'));
+      
+      if (isOverloadedError && attempt < MAX_RETRIES - 1) {
+        const delay = INITIAL_DELAY * Math.pow(2, attempt);
+        console.warn(`Gemini API overloaded. Retrying attempt ${attempt + 2}/${MAX_RETRIES} in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        // Non-retryable error or max retries reached, rethrow to be caught by the UI
+        console.error(`Gemini API error after ${attempt + 1} attempts:`, error);
+        throw error;
+      }
+    }
+  }
+  
+  // This should not be reachable if MAX_RETRIES > 0, but it satisfies TypeScript
+  throw new Error('Falha ao se conectar com a API Gemini após múltiplas tentativas.');
 }
 
 export async function generateConversationTitle(

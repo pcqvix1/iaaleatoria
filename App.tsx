@@ -264,7 +264,13 @@ const App: React.FC = () => {
   
     } catch (error) {
       console.error("Gemini API error:", error);
-      const errorMessage = error instanceof Error ? error.message : 'Desculpe, encontrei um erro. Por favor, tente novamente.';
+      let errorMessage;
+      if (error instanceof Error && (error.message.includes('503') || error.message.toLowerCase().includes('overloaded'))) {
+        errorMessage = 'O modelo de IA parece estar sobrecarregado no momento. Por favor, tente novamente em alguns instantes.';
+      } else {
+        errorMessage = error instanceof Error ? error.message : 'Desculpe, encontrei um erro. Por favor, tente novamente.';
+      }
+
       updateAndSaveConversations(prev => prev.map(c => 
         c.id === conversationIdToUpdate 
           ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: `**Erro:** ${errorMessage}` } : m), isTyping: false }

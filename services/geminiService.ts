@@ -1,30 +1,37 @@
 
-
-import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { type Message } from '../types';
+
+// We do NOT import GoogleGenAI here to avoid exposing secrets or heavy SDKs on client.
+// We mock the types we need.
+export interface GenerateContentResponse {
+  text: () => string; // The SDK uses a getter, but our mock might use a property or method.
+  candidates?: any[];
+  usageMetadata?: any;
+}
 
 const chatModel = 'gemini-3-flash-preview';
 const visionModel = 'gemini-3-flash-preview';
 
-const getAi = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("API_KEY environment variable not found.");
-  }
-  return new GoogleGenAI({ apiKey });
-}
-
 type ContentPart = { text: string } | { inlineData: { mimeType: string; data: string } };
 
 // Function for text and file chat
-export async function generateStream(
+export async function* generateStream(
   history: Message[],
   newPrompt: string,
-  attachment?: { data: string; mimeType: string; name: string; }
-): Promise<AsyncGenerator<GenerateContentResponse>> {
-  const ai = getAi();
+  attachment?: { data: string; mimeType: string; name: string; },
+  systemInstruction?: string
+): AsyncGenerator<{ text: string; candidates?: any[] }> {
   
-  const contents = history.map(msg => {
+  // 0. Context Window Management (Sliding Window)
+  // We keep the last 20 messages to prevent token overflow in long conversations.
+  // This is a "Professional" optimization.
+  const MAX_HISTORY = 20;
+  const limitedHistory = history.length > MAX_HISTORY 
+    ? history.slice(history.length - MAX_HISTORY) 
+    : history;
+
+  // 1. Prepare Payload
+  const contents = limitedHistory.map(msg => {
     const parts: ContentPart[] = [];
 
     if (msg.attachment) {
@@ -72,7 +79,6 @@ export async function generateStream(
     }
   }
 
-  // Adicione o prompt do usuário como uma parte separada, sem prefixos.
   if (newPrompt.trim()) {
     userParts.push({ text: newPrompt });
   }
@@ -84,46 +90,92 @@ export async function generateStream(
   const filteredContents = contents.filter(c => c.parts.length > 0 && c.parts.some(p => ('text' in p && p.text.trim()) || 'inlineData' in p));
   const modelToUse = attachment?.mimeType.startsWith('image/') ? visionModel : chatModel;
   
-  const streamRequest = {
+  // Use custom system instruction or default
+  const instruction = systemInstruction || 'Você é um assistente de IA prestativo e amigável. Responda em português do Brasil e formate as respostas usando Markdown.';
+
+  const payload = {
     model: modelToUse,
     contents: filteredContents,
     config: {
-      systemInstruction: 'Você é um assistente de IA prestativo e amigável. Responda em português do Brasil e formate as respostas usando Markdown. Se perguntarem quem te criou ou quem é seu criador, responda que foi Pedro Campos Queiroz.',
+      systemInstruction: instruction,
       maxOutputTokens: 8192,
       thinkingConfig: { thinkingBudget: 1024 },
     },
   };
 
-  const MAX_RETRIES = 3;
-  const INITIAL_DELAY = 1000; // 1 second
+  // 2. Fetch from our own backend
+  const response = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    try {
-      const responseStream = await ai.models.generateContentStream(streamRequest);
-      return responseStream; // Success, return the stream
-    } catch (error) {
-      const isOverloadedError = error instanceof Error && (error.message.includes('503') || error.message.toLowerCase().includes('overloaded'));
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `Erro do servidor: ${response.status}`);
+  }
+
+  if (!response.body) throw new Error('ReadableStream não suportado.');
+
+  // 3. Read the stream
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  const delimiter = '\n__GEMINI_CHUNK__\n';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
       
-      if (isOverloadedError && attempt < MAX_RETRIES - 1) {
-        const delay = INITIAL_DELAY * Math.pow(2, attempt);
-        console.warn(`Gemini API overloaded. Retrying attempt ${attempt + 2}/${MAX_RETRIES} in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      } else {
-        // Non-retryable error or max retries reached, rethrow to be caught by the UI
-        console.error(`Gemini API error after ${attempt + 1} attempts:`, error);
-        throw error;
+      const parts = buffer.split(delimiter);
+      // Keep the last part in buffer as it might be incomplete
+      buffer = parts.pop() || '';
+
+      for (const part of parts) {
+        if (!part.trim()) continue;
+        try {
+          const chunkJson = JSON.parse(part);
+          if (chunkJson.error) throw new Error(chunkJson.error);
+          
+          // Map backend response to what frontend expects
+          yield {
+            text: chunkJson.text || '',
+            candidates: chunkJson.candidates,
+          };
+        } catch (e) {
+          console.warn('Erro ao parsear chunk:', e);
+        }
       }
     }
+    
+    // Process remaining buffer
+    if (buffer.trim()) {
+       try {
+          const chunkJson = JSON.parse(buffer);
+          if (chunkJson.error) throw new Error(chunkJson.error);
+           yield {
+            text: chunkJson.text || '',
+            candidates: chunkJson.candidates,
+          };
+        } catch (e) {
+          // Ignore incomplete json at very end
+        }
+    }
+
+  } catch (error) {
+    console.error("Stream reading error:", error);
+    throw error;
+  } finally {
+    reader.releaseLock();
   }
-  
-  // This should not be reachable if MAX_RETRIES > 0, but it satisfies TypeScript
-  throw new Error('Falha ao se conectar com a API Gemini após múltiplas tentativas.');
 }
 
 export async function generateConversationTitle(
   messages: Message[]
 ): Promise<string> {
-  const ai = getAi();
   const context = messages
     .slice(0, 2)
     .map(msg => {
@@ -145,19 +197,13 @@ ${context}
 Título Sugerido:`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: chatModel,
-      contents: prompt,
-      config: {
-        systemInstruction: 'Você é um assistente especializado em criar títulos concisos e relevantes para conversas. Sua única tarefa é fornecer o título solicitado, sem nenhum texto adicional.',
-        temperature: 0.2,
-      },
-    });
+    const stream = generateStream([], prompt);
+    let title = '';
+    for await (const chunk of stream) {
+        title += chunk.text;
+    }
 
-    let title = response.text.trim();
-    // Remove potential prefixes like "Título:", "Title:", etc., case-insensitively
     title = title.replace(/^(título|title):?\s*/i, '');
-    // Remove quotes and trailing punctuation.
     title = title.replace(/^"|"$|^\s*['`]|['`]\s*$/g, '').replace(/[.,!?;:]$/, '').trim();
 
     return title || "Nova Conversa";

@@ -11,11 +11,12 @@ import { useLocalStorage } from './hooks/useLocalStorage';
 import { MenuIcon } from './components/Icons';
 import { type Conversation, type Message, type Theme, type GroundingChunk, type User } from './types';
 import { type ChatInputHandles } from './components/ChatInput';
-import { type GenerateContentResponse } from '@google/genai';
+import { ToastProvider, useToast } from './components/Toast';
 
 type View = 'chat' | 'account';
 
-const App: React.FC = () => {
+// Wrapper component to use the hook
+const AppContent: React.FC = () => {
   const [theme, setTheme] = useLocalStorage<Theme>('theme', 'dark');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -28,6 +29,8 @@ const App: React.FC = () => {
   const saveTimeoutRef = useRef<number | undefined>(undefined);
   const chatInputRef = useRef<ChatInputHandles>(null);
   const animationFrameRef = useRef<number>();
+  
+  const { addToast } = useToast();
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -43,6 +46,7 @@ const App: React.FC = () => {
           }
         } catch (error) {
           console.error("Failed to load user conversations:", error);
+          addToast("Falha ao carregar conversas antigas.", 'error');
           setConversations([]);
         }
       }
@@ -52,7 +56,7 @@ const App: React.FC = () => {
     };
 
     initializeApp();
-  }, []);
+  }, [addToast]);
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -140,6 +144,105 @@ const App: React.FC = () => {
     setCurrentConversationId(newId);
     return newId;
   };
+  
+  // Shared logic for processing stream
+  const processStream = async (conversationId: string, history: Message[], prompt: string, attachment?: any) => {
+      const aiMessageId = uuidv4();
+      const aiMessage: Message = { id: aiMessageId, role: 'model', content: '', groundingChunks: [] };
+      const systemInstruction = conversations.find(c => c.id === conversationId)?.systemInstruction;
+
+      updateAndSaveConversations(prev => prev.map(c => 
+          c.id === conversationId 
+          ? { ...c, messages: [...c.messages, aiMessage], isTyping: true }
+          : c
+      ));
+
+      try {
+        const responseStream = await generateStream(history, prompt, attachment, systemInstruction);
+        let fullResponseText = '';
+        const allChunks: any[] = [];
+        let updateScheduled = false;
+        let buffer = '';
+
+        for await (const chunk of responseStream) {
+            if (stopGenerationRef.current || currentConversationId !== conversationId) {
+                break;
+            }
+            allChunks.push(chunk);
+            const chunkText = chunk.text;
+
+            if (typeof chunkText === 'string') {
+                buffer += chunkText;
+                if (!updateScheduled) {
+                    updateScheduled = true;
+                    animationFrameRef.current = requestAnimationFrame(() => {
+                        fullResponseText += buffer;
+                        buffer = '';
+                        updateAndSaveConversations(prev => prev.map(c => 
+                            c.id === conversationId 
+                            ? { ...c, messages: c.messages.map(m => m.id === aiMessageId ? { ...m, content: fullResponseText } : m) }
+                            : c
+                        ));
+                        updateScheduled = false;
+                    });
+                }
+            }
+        }
+        
+        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+        fullResponseText += buffer;
+
+        const lastChunk = allChunks[allChunks.length - 1];
+        const finishReason = lastChunk?.candidates?.[0]?.finishReason;
+        let interruptionMessage = '';
+
+        if (finishReason && finishReason !== 'STOP') {
+            switch (finishReason) {
+                case 'SAFETY': interruptionMessage = '\n\n---\n**Interrompido por segurança.**'; break;
+                case 'MAX_TOKENS': interruptionMessage = '\n\n---\n**Limite de tamanho atingido.**'; break;
+                default: if (finishReason !== 'STOP') interruptionMessage = `\n\n---\n**Interrompido.**`; break;
+            }
+        }
+
+        const finalContent = fullResponseText + interruptionMessage;
+        const groundingChunks = allChunks
+            .flatMap(chunk => chunk.candidates?.[0]?.groundingMetadata?.groundingChunks || [])
+            .filter((chunk): chunk is GroundingChunk => !!(chunk.web && chunk.web.uri && chunk.web.title));
+        
+        const uniqueGroundingChunks = Array.from(new Map(groundingChunks.map(item => [item.web.uri, item])).values());
+
+        updateAndSaveConversations(prev => prev.map(c => {
+            if (c.id === conversationId) {
+                return { 
+                    ...c, 
+                    messages: c.messages.map(m => m.id === aiMessageId ? { ...m, content: finalContent, groundingChunks: uniqueGroundingChunks.length > 0 ? uniqueGroundingChunks : m.groundingChunks } : m), 
+                    isTyping: false 
+                };
+            }
+            return c;
+        }));
+
+        if (!interruptionMessage && history.length === 0) {
+             generateConversationTitle([...history, { role: 'user', content: prompt, id: 'temp' } as Message, { ...aiMessage, content: finalContent }]).then(newTitle => {
+                if (newTitle) {
+                    updateAndSaveConversations(prev => prev.map(c => c.id === conversationId ? { ...c, title: newTitle } : c));
+                }
+            });
+        }
+
+      } catch (error) {
+          console.error("Gemini API error:", error);
+          let errorMessage = 'Erro ao processar.';
+          if (error instanceof Error) errorMessage = `Erro: ${error.message}`;
+          addToast("Erro na geração da resposta", "error");
+
+          updateAndSaveConversations(prev => prev.map(c => 
+              c.id === conversationId 
+              ? { ...c, messages: c.messages.map(m => m.id === aiMessageId ? { ...m, content: `**${errorMessage}**` } : m), isTyping: false }
+              : c
+          ));
+      }
+  };
 
 
   const handleSendMessage = async (input: string, attachment?: { data: string; mimeType: string; name: string; }) => {
@@ -147,140 +250,111 @@ const App: React.FC = () => {
   
     const conversationIdToUpdate = ensureConversationExists();
     setView('chat');
-  
+    stopGenerationRef.current = false;
+
     const userMessage: Message = { 
         id: uuidv4(), 
         role: 'user', 
         content: input,
         ...(attachment && { attachment }),
     };
-    const aiMessage: Message = { id: uuidv4(), role: 'model', content: '', groundingChunks: [] };
-  
-    const conversationHistory = conversations.find(c => c.id === conversationIdToUpdate)?.messages ?? [];
-  
-    // Initial state update with user message and empty AI message
+    
+    // Add user message to state FIRST
     updateAndSaveConversations(prev => prev.map(c => 
       c.id === conversationIdToUpdate 
-        ? { ...c, messages: [...c.messages, userMessage, aiMessage], isTyping: true }
+        ? { ...c, messages: [...c.messages, userMessage] }
         : c
     ));
-    stopGenerationRef.current = false;
-  
-    try {
-      const responseStream = await generateStream(conversationHistory, input, attachment);
-  
-      let fullResponseText = '';
-      const allChunks: GenerateContentResponse[] = [];
-      let updateScheduled = false;
-      let buffer = '';
-  
-      for await (const chunk of responseStream) {
-        if (stopGenerationRef.current || currentConversationId !== conversationIdToUpdate) {
-          break;
-        }
-        allChunks.push(chunk);
-        const chunkText = chunk.text;
 
-        if (typeof chunkText === 'string') {
-          buffer += chunkText;
-          if (!updateScheduled) {
-            updateScheduled = true;
-            animationFrameRef.current = requestAnimationFrame(() => {
-              fullResponseText += buffer;
-              buffer = '';
-              updateAndSaveConversations(prev => prev.map(c => 
-                c.id === conversationIdToUpdate 
-                  ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: fullResponseText } : m) }
-                  : c
-              ));
-              updateScheduled = false;
-            });
-          }
-        }
-      }
-      
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      
-      // One final update to ensure all buffered content and metadata is set
-      fullResponseText += buffer;
-
-      const lastChunk = allChunks[allChunks.length - 1];
-      const finishReason = lastChunk?.candidates?.[0]?.finishReason;
-      let interruptionMessage = '';
-
-      if (finishReason && finishReason !== 'STOP') {
-        switch (finishReason) {
-            case 'SAFETY':
-                interruptionMessage = '\n\n---\n**A resposta foi interrompida por motivos de segurança.**';
-                break;
-            case 'MAX_TOKENS':
-                interruptionMessage = '\n\n---\n**A resposta foi interrompida porque atingiu o comprimento máximo.**';
-                break;
-            case 'RECITATION':
-                 interruptionMessage = '\n\n---\n**A resposta foi interrompida para evitar a repetição de conteúdo protegido por direitos autorais.**';
-                break;
-            default:
-                 interruptionMessage = `\n\n---\n**A resposta foi interrompida. (Motivo: ${finishReason})**`;
-                break;
-        }
-      }
-
-      const finalContent = fullResponseText + interruptionMessage;
-
-      const groundingChunks = allChunks
-        .flatMap(chunk => chunk.candidates?.[0]?.groundingMetadata?.groundingChunks || [])
-        .filter((chunk): chunk is GroundingChunk => !!(chunk.web && chunk.web.uri && chunk.web.title));
-      
-      const uniqueGroundingChunks = Array.from(new Map(groundingChunks.map(item => [item.web.uri, item])).values());
-
-      updateAndSaveConversations(prev => prev.map(c => {
-        if (c.id === conversationIdToUpdate) {
-            const updatedMessages = c.messages.map(m => 
-                m.id === aiMessage.id 
-                    ? { 
-                        ...m, 
-                        content: finalContent, 
-                        groundingChunks: uniqueGroundingChunks.length > 0 ? uniqueGroundingChunks : m.groundingChunks 
-                      } 
-                    : m
-            );
-            return { ...c, messages: updatedMessages, isTyping: false };
-        }
-        return c;
-      }));
-      
-      if (!interruptionMessage && conversationHistory.length === 0) {
-        const titleContextMessages: Message[] = [userMessage, { ...aiMessage, content: finalContent }];
-        generateConversationTitle(titleContextMessages).then(newTitle => {
-          if (newTitle) {
-            updateAndSaveConversations(prev => prev.map(c =>
-              c.id === conversationIdToUpdate ? { ...c, title: newTitle } : c
-            ));
-          }
-        });
-      }
-  
-    } catch (error) {
-      console.error("Gemini API error:", error);
-      let errorMessage;
-      if (error instanceof Error && (error.message.includes('503') || error.message.toLowerCase().includes('overloaded'))) {
-        errorMessage = 'O modelo de IA parece estar sobrecarregado no momento. Por favor, tente novamente em alguns instantes.';
-      } else {
-        errorMessage = error instanceof Error ? error.message : 'Desculpe, encontrei um erro. Por favor, tente novamente.';
-      }
-
-      updateAndSaveConversations(prev => prev.map(c => 
-        c.id === conversationIdToUpdate 
-          ? { ...c, messages: c.messages.map(m => m.id === aiMessage.id ? { ...m, content: `**Erro:** ${errorMessage}` } : m), isTyping: false }
-          : c
-      ));
-    }
+    const conversationHistory = conversations.find(c => c.id === conversationIdToUpdate)?.messages ?? [];
+    
+    // Process stream with updated history (including the new user message passed effectively via prompt argument logic in previous, but let's be cleaner)
+    // Actually generateStream expects history WITHOUT the new prompt usually, or we pass newPrompt param.
+    // Let's stick to the pattern: History = existing messages. NewPrompt = current input.
+    
+    await processStream(conversationIdToUpdate, conversationHistory, input, attachment);
   };
   
+  const handleEditMessage = async (messageId: string, newContent: string) => {
+      if (!currentConversationId) return;
+      const convo = conversations.find(c => c.id === currentConversationId);
+      if (!convo) return;
+
+      const messageIndex = convo.messages.findIndex(m => m.id === messageId);
+      if (messageIndex === -1) return;
+
+      // Truncate history up to this message
+      const truncatedMessages = convo.messages.slice(0, messageIndex);
+      
+      // Update state to remove everything after and including the edited message
+      updateAndSaveConversations(prev => prev.map(c => 
+          c.id === currentConversationId 
+          ? { ...c, messages: truncatedMessages } // We will add the updated user message inside handleSendMessage logic equivalent
+          : c
+      ));
+
+      // Trigger generation effectively as a new message, but with history truncated
+      // We manually add the edited user message and trigger stream
+      stopGenerationRef.current = false;
+      const updatedUserMessage: Message = { 
+          id: uuidv4(), // New ID for the "new" branch
+          role: 'user', 
+          content: newContent,
+          attachment: convo.messages[messageIndex].attachment // Preserve attachment if any
+      };
+
+      updateAndSaveConversations(prev => prev.map(c => 
+          c.id === currentConversationId 
+          ? { ...c, messages: [...truncatedMessages, updatedUserMessage] }
+          : c
+      ));
+
+      await processStream(currentConversationId, truncatedMessages, newContent, updatedUserMessage.attachment);
+  };
+
+  const handleRegenerate = async () => {
+      if (!currentConversationId) return;
+      const convo = conversations.find(c => c.id === currentConversationId);
+      if (!convo || convo.messages.length === 0) return;
+
+      const lastMessage = convo.messages[convo.messages.length - 1];
+      if (lastMessage.role !== 'model') return; // Can only regenerate if last was AI
+
+      // Remove last AI message
+      const messagesWithoutLast = convo.messages.slice(0, -1);
+      const lastUserMessage = messagesWithoutLast[messagesWithoutLast.length - 1];
+      
+      if (!lastUserMessage) return;
+
+      updateAndSaveConversations(prev => prev.map(c => 
+          c.id === currentConversationId 
+          ? { ...c, messages: messagesWithoutLast }
+          : c
+      ));
+
+      stopGenerationRef.current = false;
+      
+      // We need to re-send the prompt of the last user message
+      // History is everything BEFORE the last user message
+      const historyForStream = messagesWithoutLast.slice(0, -1);
+      
+      await processStream(currentConversationId, historyForStream, lastUserMessage.content, lastUserMessage.attachment);
+  };
+
+  const handleUpdateSystemInstruction = (instruction: string) => {
+      if (!currentConversationId) return;
+      updateAndSaveConversations(prev => prev.map(c => 
+          c.id === currentConversationId ? { ...c, systemInstruction: instruction } : c
+      ));
+      addToast("Instruções atualizadas", "success");
+  };
+
   const handleStopGenerating = () => {
     stopGenerationRef.current = true;
+    updateAndSaveConversations(prev => prev.map(c => 
+        c.id === currentConversationId ? { ...c, isTyping: false } : c
+    ));
+    addToast("Geração interrompida", "info");
   };
 
   useEffect(() => {
@@ -305,10 +379,13 @@ const App: React.FC = () => {
   
   const clearHistory = () => {
     if (!currentUser) return;
-    stopGenerationRef.current = true;
-    updateAndSaveConversations([]);
-    setCurrentConversationId(null);
-    setView('chat');
+    if (confirm("Tem certeza que deseja apagar todo o histórico de conversas deste dispositivo?")) {
+        stopGenerationRef.current = true;
+        updateAndSaveConversations([]);
+        setCurrentConversationId(null);
+        setView('chat');
+        addToast("Histórico limpo com sucesso", "success");
+    }
   };
 
   const handleLogin = async (email: string, password: string): Promise<string | null> => {
@@ -325,10 +402,12 @@ const App: React.FC = () => {
         setCurrentConversationId(null);
       }
       setView('chat');
+      addToast(`Bem-vindo, ${user.name}!`, "success");
       return null;
     } catch (error) {
       console.error("Login process failed:", error);
       const message = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido durante o login.';
+      addToast(message, "error");
       return message;
     }
   };
@@ -340,12 +419,12 @@ const App: React.FC = () => {
       setConversations([]);
       setCurrentConversationId(null);
       setView('chat');
+      addToast("Conta criada com sucesso!", "success");
       return null;
     } catch (error) {
-      if (error instanceof Error) {
-        return error.message;
-      }
-      return 'Ocorreu um erro desconhecido.';
+      const msg = error instanceof Error ? error.message : 'Erro ao registrar.';
+      addToast(msg, "error");
+      return msg;
     }
   };
 
@@ -362,10 +441,11 @@ const App: React.FC = () => {
         setCurrentConversationId(null);
       }
       setView('chat');
+      addToast(`Bem-vindo, ${user.name}!`, "success");
       return null;
     } catch (error) {
-      console.error("Google Login process failed:", error);
-      const message = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido durante o login com o Google.';
+      const message = error instanceof Error ? error.message : 'Erro login Google.';
+      addToast(message, "error");
       return message;
     }
   };
@@ -376,6 +456,7 @@ const App: React.FC = () => {
     setConversations([]);
     setCurrentConversationId(null);
     setView('chat');
+    addToast("Você saiu da conta.", "info");
   };
 
   const handlePasswordUpdate = () => {
@@ -385,18 +466,22 @@ const App: React.FC = () => {
       localStorage.setItem('currentUser', JSON.stringify(updatedUser));
       return updatedUser;
     });
+    addToast("Senha atualizada.", "success");
   };
   
   if (isLoading) {
     return (
         <div className="flex-1 flex h-screen w-screen items-center justify-center bg-whatsapp-light-bg dark:bg-whatsapp-dark-bg">
-            <p className="text-gray-600 dark:text-gray-400">Carregando...</p>
+            <div className="flex flex-col items-center gap-2">
+                 <div className="w-8 h-8 border-4 border-gpt-green border-t-transparent rounded-full animate-spin"></div>
+                 <p className="text-gray-600 dark:text-gray-400 font-medium">Carregando...</p>
+            </div>
         </div>
     );
   }
 
   return (
-    <div className="relative h-screen w-full bg-whatsapp-light-bg dark:bg-whatsapp-dark-bg text-black dark:text-white overflow-hidden">
+    <div className="relative h-screen w-full bg-whatsapp-light-bg dark:bg-whatsapp-dark-bg text-black dark:text-white overflow-hidden font-sans">
       {currentUser ? (
         <>
           <Sidebar
@@ -416,7 +501,7 @@ const App: React.FC = () => {
           {!isSidebarOpen && view === 'chat' && (
             <button 
               onClick={() => setIsSidebarOpen(true)}
-              className="absolute top-2 left-2 z-30 p-2 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700/50"
+              className="absolute top-2 left-2 z-30 p-2 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700/50 shadow-sm bg-white/50 dark:bg-black/20 backdrop-blur-sm"
               aria-label="Abrir barra lateral"
             >
               <MenuIcon />
@@ -431,6 +516,9 @@ const App: React.FC = () => {
                 onStopGenerating={handleStopGenerating}
                 onFileDrop={(file) => chatInputRef.current?.setFile(file)}
                 chatInputRef={chatInputRef}
+                onEditMessage={handleEditMessage}
+                onRegenerate={handleRegenerate}
+                onUpdateSystemInstruction={handleUpdateSystemInstruction}
               />
             ) : (
               <AccountPage
@@ -452,5 +540,13 @@ const App: React.FC = () => {
     </div>
   );
 };
+
+const App: React.FC = () => {
+    return (
+        <ToastProvider>
+            <AppContent />
+        </ToastProvider>
+    )
+}
 
 export default App;

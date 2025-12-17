@@ -1,3 +1,4 @@
+
 export type Role = 'user' | 'model';
 
 export interface GroundingChunk {
@@ -25,11 +26,11 @@ export interface Conversation {
   messages: Message[];
   createdAt: number;
   isTyping?: boolean;
+  systemInstruction?: string; // New field for custom persona
 }
 
 export type Theme = 'light' | 'dark';
 
-// FIX: Exported the AspectRatio type to be used in the ImageGenerationModal.
 export type AspectRatio = '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
 
 export interface User {

@@ -3,8 +3,8 @@
 import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { type Message } from '../types';
 
-const chatModel = 'gemini-2.5-flash';
-const visionModel = 'gemini-2.5-flash';
+const chatModel = 'gemini-3-flash-preview';
+const visionModel = 'gemini-3-flash-preview';
 
 const getAi = () => {
   const apiKey = process.env.API_KEY;

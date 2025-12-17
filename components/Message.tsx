@@ -6,11 +6,13 @@ import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { type Message } from '../types';
-import { FileIcon, CopyIcon, CheckIcon, EditIcon, CloseIcon } from './Icons';
+import { FileIcon, CopyIcon, CheckIcon, EditIcon, RefreshIcon } from './Icons';
 
 interface MessageBubbleProps {
   message: Message;
+  isLast?: boolean;
   onEdit?: (messageId: string, newContent: string) => void;
+  onRegenerate?: () => void;
 }
 
 const SourceChevronIcon = ({ open }: { open: boolean }) => (
@@ -120,11 +122,12 @@ const CodeBlock: React.FC<any> = ({ node, inline, className, children, ...props 
 };
 
 // Using memo to prevent re-rendering of previous messages when new ones arrive
-export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ message, onEdit }) => {
+export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ message, isLast, onEdit, onRegenerate }) => {
   const [showSources, setShowSources] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
+  const [isCopied, setIsCopied] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   const isUserModel = message.role === 'user';
@@ -157,18 +160,22 @@ export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ message, onEd
     setIsEditing(false);
   };
 
+  const handleCopyMessage = () => {
+    navigator.clipboard.writeText(message.content).then(() => {
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+    });
+  };
+
   return (
     <div 
         className={`w-full flex group ${bubbleContainerClasses} mb-2`}
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
     >
-        {!isUserModel && (
-            <div className="w-8 h-8 rounded-full bg-gpt-green flex items-center justify-center mr-3 flex-shrink-0 mt-1 shadow-sm">
-                 <span className="text-white text-xs font-bold">AI</span>
-            </div>
-        )}
-      <div className={`relative max-w-[85%] md:max-w-2xl px-4 py-3 shadow-none ${bubbleClasses} ${isUserModel ? 'shadow-sm border border-gray-200 dark:border-gray-700/50' : ''}`}>
+      {/* Removed AI Avatar */}
+      
+      <div className={`relative max-w-[95%] md:max-w-3xl px-4 py-3 shadow-none ${bubbleClasses} ${isUserModel ? 'shadow-sm border border-gray-200 dark:border-gray-700/50' : ''}`}>
         
         {/* Edit Button for User */}
         {isUserModel && isHovering && !isEditing && !message.attachment && onEdit && (
@@ -268,6 +275,29 @@ export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ message, onEd
                           </div>
                         )}
                       </div>
+                    )}
+                    
+                    {/* Action Bar (Copy & Regenerate) */}
+                    {!isUserModel && !showTyping && (
+                        <div className="flex items-center gap-2 mt-2 pt-1 text-gray-400 select-none">
+                            <button 
+                                onClick={handleCopyMessage}
+                                className="p-1 rounded-md hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                                title="Copiar resposta"
+                            >
+                                {isCopied ? <CheckIcon /> : <CopyIcon />}
+                            </button>
+                            
+                            {isLast && onRegenerate && (
+                                <button 
+                                    onClick={onRegenerate}
+                                    className="p-1 rounded-md hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                                    title="Regenerar resposta"
+                                >
+                                    <RefreshIcon />
+                                </button>
+                            )}
+                        </div>
                     )}
                   </>
                 )}

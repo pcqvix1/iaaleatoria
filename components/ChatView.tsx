@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { type Conversation } from '../types';
 import { MessageBubble } from './Message';
 import { ChatInput, type ChatInputHandles } from './ChatInput';
-import { UploadCloudIcon, TuneIcon, RefreshIcon } from './Icons';
+import { UploadCloudIcon, TuneIcon } from './Icons';
 import { SystemInstructionModal } from './SystemInstructionModal';
 
 interface ChatViewProps {
@@ -101,8 +101,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
   };
   
-  const showRegenerate = !isTyping && conversation?.messages && conversation.messages.length > 0 && conversation.messages[conversation.messages.length - 1].role === 'model';
-
   return (
     <div 
       className="flex-1 flex flex-col bg-transparent overflow-hidden relative"
@@ -138,30 +136,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
       >
         <div className="max-w-3xl mx-auto space-y-4">
           {conversation?.messages && conversation.messages.length > 0 ? (
-            conversation.messages.map((message) => (
+            conversation.messages.map((message, index) => (
               <MessageBubble 
                 key={message.id} 
                 message={message} 
                 onEdit={onEditMessage}
+                isLast={index === conversation.messages.length - 1}
+                onRegenerate={onRegenerate}
               />
             ))
           ) : (
             <WelcomeScreen />
           )}
           
-          {/* Regenerate Button */}
-          {showRegenerate && onRegenerate && (
-             <div className="flex justify-center mt-2 animate-fade-in">
-                <button 
-                    onClick={onRegenerate}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gpt-gray border border-gray-200 dark:border-gray-600 rounded-md shadow-sm text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-                >
-                    <RefreshIcon />
-                    Regenerar resposta
-                </button>
-             </div>
-          )}
-
           <div ref={messagesEndRef} className="h-4" />
         </div>
       </div>

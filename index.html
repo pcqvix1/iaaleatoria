@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en" translate="no">
   <head>
@@ -62,6 +63,31 @@
   }
 }
 </script>
+<style>
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #d1d5db; /* gray-300 for light mode */
+        border-radius: 5px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: #9ca3af; /* gray-400 for light mode */
+    }
+
+    /* Dark mode specific overrides using the 'dark' class on parent */
+    .dark ::-webkit-scrollbar-thumb {
+        background: #444654; /* gpt-light-gray for dark mode */
+    }
+    .dark ::-webkit-scrollbar-thumb:hover {
+        background: #565869; /* slightly lighter for hover in dark mode */
+    }
+</style>
 </head>
   <body class="bg-whatsapp-light-bg dark:bg-whatsapp-dark-bg">
     <div id="root"></div>

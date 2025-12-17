@@ -28,7 +28,7 @@ const AppContent: React.FC = () => {
   const stopGenerationRef = useRef(false);
   const saveTimeoutRef = useRef<number | undefined>(undefined);
   const chatInputRef = useRef<ChatInputHandles>(null);
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number | undefined>(undefined);
   
   const { addToast } = useToast();
 
@@ -114,6 +114,20 @@ const AppContent: React.FC = () => {
 
   const startNewConversation = () => {
     if (!currentUser) return;
+
+    // Check if there is already an empty conversation
+    const existingEmptyConversation = conversations.find(c => c.messages.length === 0);
+
+    if (existingEmptyConversation) {
+      setCurrentConversationId(existingEmptyConversation.id);
+      setView('chat');
+      stopGenerationRef.current = true;
+      if (window.innerWidth < 768) {
+        setIsSidebarOpen(false);
+      }
+      return;
+    }
+
     stopGenerationRef.current = true;
     setView('chat');
     const newId = uuidv4();
@@ -126,12 +140,24 @@ const AppContent: React.FC = () => {
     };
     updateAndSaveConversations(prev => [newConversation, ...prev]);
     setCurrentConversationId(newId);
+    
+    if (window.innerWidth < 768) {
+        setIsSidebarOpen(false);
+    }
   };
 
   const ensureConversationExists = (): string => {
     if (currentConversationId) {
       return currentConversationId;
     }
+    
+    // Check reuse here as well just in case
+    const existingEmptyConversation = conversations.find(c => c.messages.length === 0);
+    if (existingEmptyConversation) {
+        setCurrentConversationId(existingEmptyConversation.id);
+        return existingEmptyConversation.id;
+    }
+
     const newId = uuidv4();
     const newConversation: Conversation = {
       id: newId,

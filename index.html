@@ -1,11 +1,15 @@
-
 <!DOCTYPE html>
 <html lang="en" translate="no">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#202123" />
     <meta name="google" content="notranslate" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Gemini GPT</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg" type="image/svg+xml">
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script>
       tailwind.config = {
@@ -89,7 +93,7 @@
     }
 </style>
 </head>
-  <body class="bg-whatsapp-light-bg dark:bg-whatsapp-dark-bg">
+  <body class="bg-whatsapp-light-bg dark:bg-whatsapp-dark-bg overscroll-none">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

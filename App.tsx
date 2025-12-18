@@ -12,6 +12,7 @@ import { MenuIcon } from './components/Icons';
 import { type Conversation, type Message, type Theme, type GroundingChunk, type User } from './types';
 import { type ChatInputHandles } from './components/ChatInput';
 import { ToastProvider, useToast } from './components/Toast';
+import { App as CapacitorApp } from '@capacitor/app';
 
 type View = 'chat' | 'account';
 
@@ -30,7 +31,41 @@ const AppContent: React.FC = () => {
   const chatInputRef = useRef<ChatInputHandles>(null);
   const animationFrameRef = useRef<number | undefined>(undefined);
   
+  // UseRefs for state access inside event listeners
+  const stateRef = useRef({ isSidebarOpen, view });
+  useEffect(() => {
+     stateRef.current = { isSidebarOpen, view };
+  }, [isSidebarOpen, view]);
+
   const { addToast } = useToast();
+
+  // Hardware Back Button Handler for Android
+  useEffect(() => {
+    const handleBackButton = async () => {
+        // Remove any existing listeners first to avoid duplicates
+        try {
+            await CapacitorApp.removeAllListeners();
+        } catch (e) {
+            // Ignore error if not in capacitor environment
+        }
+
+        CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+            const { isSidebarOpen, view } = stateRef.current;
+            
+            if (isSidebarOpen && window.innerWidth < 768) {
+                // If sidebar is open on mobile, close it
+                setIsSidebarOpen(false);
+            } else if (view === 'account') {
+                // If on account page, go back to chat
+                setView('chat');
+            } else {
+                // Otherwise exit app
+                CapacitorApp.exitApp();
+            }
+        });
+    };
+    handleBackButton();
+  }, []);
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -294,10 +329,6 @@ const AppContent: React.FC = () => {
 
     const conversationHistory = conversations.find(c => c.id === conversationIdToUpdate)?.messages ?? [];
     
-    // Process stream with updated history (including the new user message passed effectively via prompt argument logic in previous, but let's be cleaner)
-    // Actually generateStream expects history WITHOUT the new prompt usually, or we pass newPrompt param.
-    // Let's stick to the pattern: History = existing messages. NewPrompt = current input.
-    
     await processStream(conversationIdToUpdate, conversationHistory, input, attachment);
   };
   
@@ -315,12 +346,10 @@ const AppContent: React.FC = () => {
       // Update state to remove everything after and including the edited message
       updateAndSaveConversations(prev => prev.map(c => 
           c.id === currentConversationId 
-          ? { ...c, messages: truncatedMessages } // We will add the updated user message inside handleSendMessage logic equivalent
+          ? { ...c, messages: truncatedMessages } 
           : c
       ));
 
-      // Trigger generation effectively as a new message, but with history truncated
-      // We manually add the edited user message and trigger stream
       stopGenerationRef.current = false;
       const updatedUserMessage: Message = { 
           id: uuidv4(), // New ID for the "new" branch
@@ -360,8 +389,6 @@ const AppContent: React.FC = () => {
 
       stopGenerationRef.current = false;
       
-      // We need to re-send the prompt of the last user message
-      // History is everything BEFORE the last user message
       const historyForStream = messagesWithoutLast.slice(0, -1);
       
       await processStream(currentConversationId, historyForStream, lastUserMessage.content, lastUserMessage.attachment);
@@ -527,7 +554,7 @@ const AppContent: React.FC = () => {
           {!isSidebarOpen && view === 'chat' && (
             <button 
               onClick={() => setIsSidebarOpen(true)}
-              className="absolute top-2 left-2 z-30 p-2 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700/50 shadow-sm bg-white/50 dark:bg-black/20 backdrop-blur-sm"
+              className="absolute top-2 left-2 z-30 p-2 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700/50 shadow-sm bg-white/50 dark:bg-black/20 backdrop-blur-sm mt-[env(safe-area-inset-top)]"
               aria-label="Abrir barra lateral"
             >
               <MenuIcon />

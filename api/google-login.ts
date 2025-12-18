@@ -1,7 +1,9 @@
+
 import { sql } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { allowCors } from './cors';
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
     return res.status(405).json({ message: 'Method Not Allowed' });
@@ -14,7 +16,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ message: 'Nome e e-mail são obrigatórios.' });
     }
 
-    // Check if user already exists and get their password status
     const { rows: existingUsers } = await sql`
       SELECT id, name, email, password 
       FROM users 
@@ -23,7 +24,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (existingUsers.length > 0) {
       const user = existingUsers[0];
-      // Determine if the user has a password. An empty string or NULL means no password.
       return res.status(200).json({
         id: user.id,
         name: user.name,
@@ -32,8 +32,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
     
-    // If user does not exist, create a new one without a password.
-    // Use an empty string '' for the password to satisfy potential NOT NULL constraints.
     const { rows: newUsers } = await sql`
       INSERT INTO users (name, email, password)
       VALUES (${name}, ${email}, '')
@@ -51,3 +49,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ message: 'Ocorreu um erro no servidor.' });
   }
 }
+
+export default allowCors(handler);

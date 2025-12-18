@@ -1,12 +1,13 @@
 
 import { GoogleGenAI } from '@google/genai';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { allowCors } from './cors';
 
 // Initialize Gemini Client server-side
 const apiKey = process.env.API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
@@ -33,10 +34,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     for await (const chunk of responseStream) {
-      // We send the raw text of the chunk or a JSON structure if needed.
-      // To keep it compatible with the frontend expecting GenerateContentResponse objects,
-      // we will serialize the relevant parts of the chunk.
-      
       const chunkData = JSON.stringify({
         text: chunk.text,
         candidates: chunk.candidates,
@@ -50,10 +47,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   } catch (error) {
     console.error('Gemini API Error:', error);
-    // If headers are already sent, we can't send a JSON error response cleanly, 
-    // but we can try to send an error chunk.
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     res.write(JSON.stringify({ error: errorMessage }) + '\n__GEMINI_CHUNK__\n');
     res.end();
   }
 }
+
+export default allowCors(handler);

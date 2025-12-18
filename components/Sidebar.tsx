@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { type Conversation, type Theme, type User } from '../types';
 import { PlusIcon, ChatIcon, TrashIcon, SunIcon, MoonIcon, MenuIcon, SearchIcon, LogOutIcon, UserCircleIcon } from './Icons';
@@ -51,7 +52,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         className={`fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose}
       ></div>
-      <aside className={`absolute flex flex-col h-full w-64 bg-gray-50 dark:bg-gpt-dark text-gray-800 dark:text-gray-200 z-40 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out`}>
+      <aside 
+        className={`absolute flex flex-col h-full w-64 bg-gray-50 dark:bg-gpt-dark text-gray-800 dark:text-gray-200 z-40 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out`}
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
         <div className="p-2 flex items-center gap-2 flex-shrink-0">
           <button
               onClick={onClose}
@@ -108,7 +112,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </ul>
         </nav>
 
-        <div className="border-t border-gray-200 dark:border-gray-700 p-2 space-y-1">
+        <div className="border-t border-gray-200 dark:border-gray-700 p-2 space-y-1 pb-[env(safe-area-inset-bottom)]">
           <SidebarButton icon={<TrashIcon />} text="Limpar conversas" onClick={onClearHistory} />
           <SidebarButton 
             icon={theme === 'dark' ? <SunIcon /> : <MoonIcon />} 

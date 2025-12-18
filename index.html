@@ -9,7 +9,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Gemini GPT</title>
-    <link rel="manifest" href="/manifest.json">
+    <!-- Caminhos ajustados para relativos (sem a barra inicial) -->
+    <link rel="manifest" href="manifest.json">
     <link rel="icon" href="https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg" type="image/svg+xml">
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script>
@@ -65,7 +66,7 @@
     "react-syntax-highlighter/dist/esm/styles/prism": "https://esm.sh/react-syntax-highlighter@15.5.0/dist/esm/styles/prism",
     "rehype-raw": "https://esm.sh/rehype-raw@6.1.1",
     "react-syntax-highlighter/": "https://aistudiocdn.com/react-syntax-highlighter@^16.1.0/",
-    "@capacitor/cli": "https://esm.sh/@capacitor/cli@^8.0.0"
+    "@capacitor/cli": "https://esm.sh/@capacitor/cli@^6.0.0"
   }
 }
 </script>
@@ -110,6 +111,6 @@
 </head>
   <body class="bg-whatsapp-light-bg dark:bg-whatsapp-dark-bg overscroll-none fixed inset-0 w-full h-full">
     <div id="root" class="h-full w-full"></div>
-    <script type="module" src="/index.tsx"></script>
+    <script type="module" src="./index.tsx"></script>
   </body>
 </html>

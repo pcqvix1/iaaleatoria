@@ -11,7 +11,8 @@ if (!rootElement) {
 // Register Service Worker for PWA capabilities
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js')
+    // Caminho relativo para funcionar em subpastas ou file://
+    navigator.serviceWorker.register('service-worker.js')
       .then(registration => {
         console.log('SW registered: ', registration);
       })

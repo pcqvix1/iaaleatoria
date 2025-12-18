@@ -21,7 +21,7 @@
     "@vercel/node": "^5.5.5",
     "react-syntax-highlighter": "^16.1.0",
     "rehype-raw": "6.1.1",
-    "@capacitor/cli": "^8.0.0"
+    "@capacitor/cli": "^6.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

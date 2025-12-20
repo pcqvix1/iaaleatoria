@@ -1,6 +1,9 @@
-
 import { type Conversation, type User } from '../types';
-import { API_BASE_URL } from '../config';
+
+// This service is now designed to communicate with a backend API.
+// The frontend is ready, but you will need to build the API endpoints on Vercel.
+
+const API_BASE_URL = '/api'; // Assuming Vercel Serverless Functions are in the /api directory
 
 const CURRENT_USER_KEY = 'currentUser';
 
@@ -13,6 +16,7 @@ export const authService = {
     });
 
     if (!response.ok) {
+      // The server will return an error message in the body
       const errorData = await response.json();
       throw new Error(errorData.message || 'Falha no login.');
     }
@@ -35,6 +39,7 @@ export const authService = {
     }
 
     const newUser: User = await response.json();
+    // Automatically log in the new user
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(newUser));
     return newUser;
   },
@@ -57,6 +62,8 @@ export const authService = {
   },
 
   async logout(): Promise<void> {
+    // In a real app, you might want to call a /api/logout endpoint
+    // to invalidate a session token on the server.
     localStorage.removeItem(CURRENT_USER_KEY);
   },
 
@@ -96,11 +103,13 @@ export const authService = {
               throw new Error('Falha ao excluir a conta.');
           }
       }
+      // After deleting on the server, log out locally
       await this.logout();
   },
 
   async getUserConversations(userId: string): Promise<Conversation[]> {
     try {
+      // In a real app, you would also pass an authentication token.
       const response = await fetch(`${API_BASE_URL}/conversations?userId=${userId}`);
       if (!response.ok) {
         throw new Error('Não foi possível buscar as conversas.');
@@ -117,10 +126,12 @@ export const authService = {
         await fetch(`${API_BASE_URL}/conversations`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            // In a real app, you would also pass an authentication token.
             body: JSON.stringify({ userId, conversations }),
         });
     } catch (error) {
         console.error("Failed to save conversations:", error);
+        // You might want to handle this more gracefully, e.g., notify the user.
     }
   },
 };

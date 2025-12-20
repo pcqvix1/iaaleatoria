@@ -1,10 +1,8 @@
-
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { allowCors } from './cors';
 
-async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
     return res.status(405).json({ message: 'Method Not Allowed' });
@@ -26,6 +24,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const user = rows[0];
 
+    // Se o usuário tem uma senha, é uma solicitação de alteração, então verifique a senha atual
     if (user.password) {
       if (!currentPassword) {
         return res.status(400).json({ message: 'Senha atual é obrigatória.' });
@@ -36,6 +35,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
     
+    // Criptografe a nova senha e atualize
     const hashedNewPassword = await bcrypt.hash(newPassword, 10);
     await sql`UPDATE users SET password = ${hashedNewPassword} WHERE id = ${Number(userId)};`;
 
@@ -45,5 +45,3 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
-
-export default allowCors(handler);

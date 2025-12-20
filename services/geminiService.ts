@@ -1,11 +1,10 @@
 
 import { type Message } from '../types';
-import { API_BASE_URL } from '../config';
 
 // We do NOT import GoogleGenAI here to avoid exposing secrets or heavy SDKs on client.
 // We mock the types we need.
 export interface GenerateContentResponse {
-  text: () => string; 
+  text: () => string; // The SDK uses a getter, but our mock might use a property or method.
   candidates?: any[];
   usageMetadata?: any;
 }
@@ -23,11 +22,15 @@ export async function* generateStream(
   systemInstruction?: string
 ): AsyncGenerator<{ text: string; candidates?: any[] }> {
   
+  // 0. Context Window Management (Sliding Window)
+  // We keep the last 20 messages to prevent token overflow in long conversations.
+  // This is a "Professional" optimization.
   const MAX_HISTORY = 20;
   const limitedHistory = history.length > MAX_HISTORY 
     ? history.slice(history.length - MAX_HISTORY) 
     : history;
 
+  // 1. Prepare Payload
   const contents = limitedHistory.map(msg => {
     const parts: ContentPart[] = [];
 
@@ -39,7 +42,7 @@ export async function* generateStream(
                     data: msg.attachment.data
                 }
             });
-        } else { 
+        } else { // Text file
             let fileContext = '';
             if (msg.role === 'user' && msg.attachment.data) {
                 fileContext = `Contexto de um arquivo anterior chamado "${msg.attachment.name}":\n\n--- CONTEÚDO ---\n${msg.attachment.data}\n--- FIM ---`;
@@ -68,7 +71,7 @@ export async function* generateStream(
           data: attachment.data,
         },
       });
-    } else { 
+    } else { // Text file
       const fileContext = attachment.data
         ? `Use o conteúdo do arquivo "${attachment.name}" abaixo para responder à pergunta do usuário.\n\n--- INÍCIO ---\n${attachment.data}\n--- FIM ---`
         : `[O usuário anexou o arquivo "${attachment.name}" (${attachment.mimeType}), mas não foi possível ler o seu conteúdo. Informe educadamente ao usuário que você não pode acessar o conteúdo deste tipo de arquivo.]`;
@@ -87,6 +90,7 @@ export async function* generateStream(
   const filteredContents = contents.filter(c => c.parts.length > 0 && c.parts.some(p => ('text' in p && p.text.trim()) || 'inlineData' in p));
   const modelToUse = attachment?.mimeType.startsWith('image/') ? visionModel : chatModel;
   
+  // Use custom system instruction or default
   const instruction = systemInstruction || 'Você é um assistente de IA prestativo e amigável. Responda em português do Brasil e formate as respostas usando Markdown.';
 
   const payload = {
@@ -99,7 +103,8 @@ export async function* generateStream(
     },
   };
 
-  const response = await fetch(`${API_BASE_URL}/chat`, {
+  // 2. Fetch from our own backend
+  const response = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -112,6 +117,7 @@ export async function* generateStream(
 
   if (!response.body) throw new Error('ReadableStream não suportado.');
 
+  // 3. Read the stream
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
@@ -125,6 +131,7 @@ export async function* generateStream(
       buffer += decoder.decode(value, { stream: true });
       
       const parts = buffer.split(delimiter);
+      // Keep the last part in buffer as it might be incomplete
       buffer = parts.pop() || '';
 
       for (const part of parts) {
@@ -133,6 +140,7 @@ export async function* generateStream(
           const chunkJson = JSON.parse(part);
           if (chunkJson.error) throw new Error(chunkJson.error);
           
+          // Map backend response to what frontend expects
           yield {
             text: chunkJson.text || '',
             candidates: chunkJson.candidates,
@@ -143,6 +151,7 @@ export async function* generateStream(
       }
     }
     
+    // Process remaining buffer
     if (buffer.trim()) {
        try {
           const chunkJson = JSON.parse(buffer);

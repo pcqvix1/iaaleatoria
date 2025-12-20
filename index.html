@@ -3,17 +3,9 @@
 <html lang="en" translate="no">
   <head>
     <meta charset="UTF-8" />
-    <!-- Adicionado viewport-fit=cover para usar a tela inteira, inclusive área do notch -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#202123" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="google" content="notranslate" />
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Gemini GPT</title>
-    <!-- Caminhos ajustados para relativos (sem a barra inicial) -->
-    <link rel="manifest" href="manifest.json">
-    <link rel="icon" href="https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg">
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script>
       tailwind.config = {
@@ -67,49 +59,38 @@
     "react-syntax-highlighter": "https://esm.sh/react-syntax-highlighter@15.5.0",
     "react-syntax-highlighter/dist/esm/styles/prism": "https://esm.sh/react-syntax-highlighter@15.5.0/dist/esm/styles/prism",
     "rehype-raw": "https://esm.sh/rehype-raw@6.1.1",
-    "react-syntax-highlighter/": "https://aistudiocdn.com/react-syntax-highlighter@^16.1.0/",
-    "@capacitor/core": "https://esm.sh/@capacitor/core@6.0.0",
-    "@capacitor/app": "https://esm.sh/@capacitor/app@6.0.0"
+    "react-syntax-highlighter/": "https://aistudiocdn.com/react-syntax-highlighter@^16.1.0/"
   }
 }
 </script>
 <style>
-    /* Configurações para App Nativo */
-    body {
-        /* Desabilita seleção de texto geral (exceto em inputs) para sensação de app */
-        user-select: none;
-        -webkit-user-select: none;
-        /* Remove a cor de highlight ao tocar em botões no mobile */
-        -webkit-tap-highlight-color: transparent;
-        /* Removido padding do body para que os componentes controlem a área segura */
-    }
-    
-    /* Permite seleção de texto apenas nas mensagens e inputs */
-    .prose, input, textarea, .selectable-text {
-        user-select: text;
-        -webkit-user-select: text;
-    }
-
     /* Scrollbar styling */
     ::-webkit-scrollbar {
-        width: 6px; /* Mais fino para mobile */
-        height: 6px;
+        width: 10px;
+        height: 10px;
     }
     ::-webkit-scrollbar-track {
         background: transparent;
     }
     ::-webkit-scrollbar-thumb {
-        background: #d1d5db;
+        background: #d1d5db; /* gray-300 for light mode */
         border-radius: 5px;
     }
+    ::-webkit-scrollbar-thumb:hover {
+        background: #9ca3af; /* gray-400 for light mode */
+    }
+
     /* Dark mode specific overrides using the 'dark' class on parent */
     .dark ::-webkit-scrollbar-thumb {
-        background: #444654;
+        background: #444654; /* gpt-light-gray for dark mode */
+    }
+    .dark ::-webkit-scrollbar-thumb:hover {
+        background: #565869; /* slightly lighter for hover in dark mode */
     }
 </style>
 </head>
-  <body class="bg-whatsapp-light-bg dark:bg-whatsapp-dark-bg overscroll-none fixed inset-0 w-full h-full">
-    <div id="root" class="h-full w-full"></div>
-    <script type="module" src="./index.tsx"></script>
+  <body class="bg-whatsapp-light-bg dark:bg-whatsapp-dark-bg">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

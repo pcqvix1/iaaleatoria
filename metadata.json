@@ -1,7 +1,5 @@
 {
   "name": "Gemini GPT",
   "description": "A fully functional and visually faithful clone of the ChatGPT interface, powered by the Google Gemini API. It features real-time streaming responses, conversation history, light/dark modes, and a responsive design.",
-  "requestFramePermissions": [
-    "camera"
-  ]
+  "requestFramePermissions": []
 }

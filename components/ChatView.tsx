@@ -103,7 +103,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   
   return (
     <div 
-      className="flex-1 flex flex-col bg-transparent overflow-hidden relative min-h-0"
+      className="flex-1 flex flex-col bg-transparent overflow-hidden relative"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -117,10 +117,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       )}
       
       {/* Header with Persona Settings */}
-      <header 
-        className="relative w-full p-2 flex justify-between items-center text-sm text-gray-500 dark:text-gray-400 border-b border-gray-300 dark:border-gray-700/50 flex-shrink-0 bg-white/50 dark:bg-black/20 backdrop-blur-sm z-10"
-        style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}
-      >
+      <header className="relative w-full p-2 flex justify-between items-center text-sm text-gray-500 dark:text-gray-400 border-b border-gray-300 dark:border-gray-700/50 flex-shrink-0 bg-white/50 dark:bg-black/20 backdrop-blur-sm z-10">
         <div className="w-8"></div> {/* Spacer */}
         <span>{conversation?.title || 'Nova Conversa'}</span>
         <button 
@@ -135,7 +132,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       <div 
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth min-h-0"
+        className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth"
       >
         <div className="max-w-3xl mx-auto space-y-4">
           {conversation?.messages && conversation.messages.length > 0 ? (
@@ -169,7 +166,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         </button>
       )}
 
-      <div className="w-full p-4 md:p-6 bg-gradient-to-t from-white via-white to-transparent dark:from-gpt-dark dark:via-gpt-dark dark:to-transparent flex-shrink-0 z-10 pb-[env(safe-area-inset-bottom)]">
+      <div className="w-full p-4 md:p-6 bg-gradient-to-t from-white via-white to-transparent dark:from-gpt-dark dark:via-gpt-dark dark:to-transparent flex-shrink-0 z-10">
         <div className="max-w-3xl mx-auto">
           <ChatInput 
             ref={chatInputRef}

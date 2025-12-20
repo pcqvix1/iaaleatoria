@@ -13,6 +13,7 @@
     <!-- Caminhos ajustados para relativos (sem a barra inicial) -->
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg">
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script>
       tailwind.config = {
@@ -80,11 +81,7 @@
         -webkit-user-select: none;
         /* Remove a cor de highlight ao tocar em botões no mobile */
         -webkit-tap-highlight-color: transparent;
-        /* Garante que a área segura do iPhone (notch/home bar) seja respeitada */
-        padding-top: env(safe-area-inset-top);
-        padding-bottom: env(safe-area-inset-bottom);
-        padding-left: env(safe-area-inset-left);
-        padding-right: env(safe-area-inset-right);
+        /* Removido padding do body para que os componentes controlem a área segura */
     }
     
     /* Permite seleção de texto apenas nas mensagens e inputs */

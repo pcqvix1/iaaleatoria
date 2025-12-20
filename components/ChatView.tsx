@@ -103,7 +103,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   
   return (
     <div 
-      className="flex-1 flex flex-col bg-transparent overflow-hidden relative"
+      className="flex-1 flex flex-col bg-transparent overflow-hidden relative min-h-0"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -135,7 +135,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       <div 
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth"
+        className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth min-h-0"
       >
         <div className="max-w-3xl mx-auto space-y-4">
           {conversation?.messages && conversation.messages.length > 0 ? (

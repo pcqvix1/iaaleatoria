@@ -1,21 +1,27 @@
+
 {
   "short_name": "GeminiGPT",
   "name": "Gemini GPT AI",
+  "description": "Um assistente de IA avançado clone do ChatGPT powered by Gemini.",
   "icons": [
     {
       "src": "https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg",
       "type": "image/svg+xml",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
       "src": "https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg",
       "type": "image/svg+xml",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
-  "start_url": ".",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "theme_color": "#202123",
   "background_color": "#202123",
-  "orientation": "portrait"
+  "orientation": "portrait",
+  "categories": ["productivity", "utilities", "artificial-intelligence"]
 }

@@ -39,6 +39,20 @@ const AppContent: React.FC = () => {
 
   const { addToast } = useToast();
 
+  // Network Status Monitor
+  useEffect(() => {
+    const handleOnline = () => addToast('Conexão restabelecida', 'success');
+    const handleOffline = () => addToast('Você está offline. A IA precisa de internet.', 'error');
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [addToast]);
+
   // Hardware Back Button Handler for Android
   useEffect(() => {
     const handleBackButton = async () => {

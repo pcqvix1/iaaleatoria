@@ -4,13 +4,13 @@
   "icons": [
     {
       "src": "gemini.svg", 
-      "type": "image/png",
+      "type": "image/svg+xml",
       "sizes": "192x192",
       "purpose": "any"
     },
     {
       "src": "https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg",
-      "type": "image/png",
+      "type": "image/svg+xml",
       "sizes": "512x512",
       "purpose": "maskable"
     },

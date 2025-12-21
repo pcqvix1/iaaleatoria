@@ -1,13 +1,19 @@
+
 import { type Conversation, type User } from '../types';
 
-// This service is now designed to communicate with a backend API.
-// The frontend is ready, but you will need to build the API endpoints on Vercel.
-
-const API_BASE_URL = '/api'; // Assuming Vercel Serverless Functions are in the /api directory
-
+const API_BASE_URL = '/api';
 const CURRENT_USER_KEY = 'currentUser';
+const AUTH_TOKEN_KEY = 'authToken';
 
 export const authService = {
+  getAuthHeaders() {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    return {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
+  },
+
   async login(email: string, password: string): Promise<User> {
     const response = await fetch(`${API_BASE_URL}/login`, {
       method: 'POST',
@@ -16,13 +22,13 @@ export const authService = {
     });
 
     if (!response.ok) {
-      // The server will return an error message in the body
       const errorData = await response.json();
       throw new Error(errorData.message || 'Falha no login.');
     }
 
-    const user: User = await response.json();
+    const { user, token } = await response.json();
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
     return user;
   },
 
@@ -38,10 +44,10 @@ export const authService = {
         throw new Error(errorData.message || 'Falha ao registrar.');
     }
 
-    const newUser: User = await response.json();
-    // Automatically log in the new user
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(newUser));
-    return newUser;
+    const { user, token } = await response.json();
+    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
+    return user;
   },
 
   async loginWithGoogle(name: string, email: string): Promise<User> {
@@ -56,15 +62,15 @@ export const authService = {
       throw new Error(errorData.message || 'Falha no login com Google.');
     }
 
-    const user: User = await response.json();
+    const { user, token } = await response.json();
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
     return user;
   },
 
   async logout(): Promise<void> {
-    // In a real app, you might want to call a /api/logout endpoint
-    // to invalidate a session token on the server.
     localStorage.removeItem(CURRENT_USER_KEY);
+    localStorage.removeItem(AUTH_TOKEN_KEY);
   },
 
   getCurrentUser(): User | null {
@@ -79,8 +85,8 @@ export const authService = {
   async updatePassword(userId: string, newPassword: string, currentPassword?: string): Promise<void> {
     const response = await fetch(`${API_BASE_URL}/password`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, newPassword, currentPassword }),
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({ newPassword, currentPassword }), // userId removed from body, implied by token
     });
     if (!response.ok) {
         const errorData = await response.json();
@@ -91,8 +97,8 @@ export const authService = {
   async deleteAccount(userId: string): Promise<void> {
       const response = await fetch(`${API_BASE_URL}/delete-account`, {
           method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId }),
+          headers: this.getAuthHeaders(),
+          // Body empty, ID from token
       });
 
       if (!response.ok && response.status !== 204) {
@@ -103,14 +109,21 @@ export const authService = {
               throw new Error('Falha ao excluir a conta.');
           }
       }
-      // After deleting on the server, log out locally
       await this.logout();
   },
 
-  async getUserConversations(userId: string): Promise<Conversation[]> {
+  async getUserConversations(): Promise<Conversation[]> {
     try {
-      // In a real app, you would also pass an authentication token.
-      const response = await fetch(`${API_BASE_URL}/conversations?userId=${userId}`);
+      const response = await fetch(`${API_BASE_URL}/conversations`, {
+        method: 'GET',
+        headers: this.getAuthHeaders()
+      });
+      
+      if (response.status === 401) {
+          await this.logout();
+          throw new Error('Sessão expirada');
+      }
+
       if (!response.ok) {
         throw new Error('Não foi possível buscar as conversas.');
       }
@@ -121,17 +134,15 @@ export const authService = {
     }
   },
 
-  async saveUserConversations(userId: string, conversations: Conversation[]): Promise<void> {
+  async saveUserConversations(conversations: Conversation[]): Promise<void> {
     try {
         await fetch(`${API_BASE_URL}/conversations`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            // In a real app, you would also pass an authentication token.
-            body: JSON.stringify({ userId, conversations }),
+            headers: this.getAuthHeaders(),
+            body: JSON.stringify({ conversations }), // userId removed, implied by token
         });
     } catch (error) {
         console.error("Failed to save conversations:", error);
-        // You might want to handle this more gracefully, e.g., notify the user.
     }
   },
 };

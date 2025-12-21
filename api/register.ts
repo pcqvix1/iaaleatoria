@@ -1,6 +1,10 @@
+
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key_change_in_prod';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -32,12 +36,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       RETURNING id, name, email;
     `;
     
+    const user = rows[0];
     const newUser = {
-      ...rows[0],
+      ...user,
       hasPassword: true,
     };
 
-    return res.status(201).json(newUser);
+    // Generate JWT
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    return res.status(201).json({ user: newUser, token });
 
   } catch (error) {
     console.error('Register error:', error);

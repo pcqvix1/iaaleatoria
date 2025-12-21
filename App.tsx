@@ -39,15 +39,21 @@ const AppContent: React.FC = () => {
       if (user) {
         setCurrentUser(user);
         try {
-          const userConversations = await authService.getUserConversations(user.id);
+          // No longer need userId, token handles it
+          const userConversations = await authService.getUserConversations();
           setConversations(userConversations);
           if (userConversations.length > 0) {
             setCurrentConversationId(userConversations[0].id);
           }
         } catch (error) {
           console.error("Failed to load user conversations:", error);
-          addToast("Falha ao carregar conversas antigas.", 'error');
-          setConversations([]);
+          if (error instanceof Error && error.message === 'Sessão expirada') {
+             setCurrentUser(null);
+             addToast("Sessão expirada. Faça login novamente.", 'info');
+          } else {
+             addToast("Falha ao carregar conversas antigas.", 'error');
+             setConversations([]);
+          }
         }
       }
 
@@ -94,7 +100,8 @@ const AppContent: React.FC = () => {
     }
 
     saveTimeoutRef.current = window.setTimeout(() => {
-      authService.saveUserConversations(currentUser.id, conversations);
+      // No longer passing ID
+      authService.saveUserConversations(conversations);
     }, 1500); // Save after 1.5 seconds of inactivity
 
     return () => {
@@ -294,10 +301,6 @@ const AppContent: React.FC = () => {
 
     const conversationHistory = conversations.find(c => c.id === conversationIdToUpdate)?.messages ?? [];
     
-    // Process stream with updated history (including the new user message passed effectively via prompt argument logic in previous, but let's be cleaner)
-    // Actually generateStream expects history WITHOUT the new prompt usually, or we pass newPrompt param.
-    // Let's stick to the pattern: History = existing messages. NewPrompt = current input.
-    
     await processStream(conversationIdToUpdate, conversationHistory, input, attachment);
   };
   
@@ -410,6 +413,8 @@ const AppContent: React.FC = () => {
         updateAndSaveConversations([]);
         setCurrentConversationId(null);
         setView('chat');
+        // Need to save this empty state
+        authService.saveUserConversations([]);
         addToast("Histórico limpo com sucesso", "success");
     }
   };
@@ -419,7 +424,7 @@ const AppContent: React.FC = () => {
       const user = await authService.login(email, password);
       
       setCurrentUser(user);
-      const userConversations = await authService.getUserConversations(user.id);
+      const userConversations = await authService.getUserConversations();
       setConversations(userConversations);
       
       if (userConversations.length > 0) {
@@ -458,7 +463,7 @@ const AppContent: React.FC = () => {
     try {
       const user = await authService.loginWithGoogle(name, email);
       setCurrentUser(user);
-      const userConversations = await authService.getUserConversations(user.id);
+      const userConversations = await authService.getUserConversations();
       setConversations(userConversations);
 
       if (userConversations.length > 0) {
@@ -489,6 +494,8 @@ const AppContent: React.FC = () => {
     setCurrentUser(prevUser => {
       if (!prevUser) return prevUser;
       const updatedUser = { ...prevUser, hasPassword: true };
+      // Note: In real app, we might need to refresh token or re-fetch profile if this changes fundamental claims
+      // But for visual update:
       localStorage.setItem('currentUser', JSON.stringify(updatedUser));
       return updatedUser;
     });

@@ -1,5 +1,9 @@
+
 import { sql } from '@vercel/postgres';
+import jwt from 'jsonwebtoken';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key_change_in_prod';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -14,7 +18,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ message: 'Nome e e-mail são obrigatórios.' });
     }
 
-    // Check if user already exists and get their password status
+    let user;
+
+    // Check if user already exists
     const { rows: existingUsers } = await sql`
       SELECT id, name, email, password 
       FROM users 
@@ -22,29 +28,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     `;
 
     if (existingUsers.length > 0) {
-      const user = existingUsers[0];
-      // Determine if the user has a password. An empty string or NULL means no password.
-      return res.status(200).json({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        hasPassword: !!user.password,
-      });
+      user = existingUsers[0];
+    } else {
+      // Create new user
+      const { rows: newUsers } = await sql`
+        INSERT INTO users (name, email, password)
+        VALUES (${name}, ${email}, '')
+        RETURNING id, name, email, password;
+      `;
+      user = newUsers[0];
     }
     
-    // If user does not exist, create a new one without a password.
-    // Use an empty string '' for the password to satisfy potential NOT NULL constraints.
-    const { rows: newUsers } = await sql`
-      INSERT INTO users (name, email, password)
-      VALUES (${name}, ${email}, '')
-      RETURNING id, name, email;
-    `;
-    
-    const newUser = {
-      ...newUsers[0],
-      hasPassword: false,
+    const userToReturn = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      hasPassword: !!user.password,
     };
-    return res.status(201).json(newUser);
+
+    // Generate JWT
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    return res.status(200).json({ user: userToReturn, token });
 
   } catch (error) {
     console.error('Google Login error:', error);

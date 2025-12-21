@@ -3,17 +3,12 @@
   "name": "Gemini GPT - AI Assistant",
   "icons": [
     {
-      "src": "https://res.cloudinary.com/dqn28emva/image/upload/v1766340711/zvbwt10pzzheszgb3dun.png",
-      "type": "image/png",
-      "sizes": "192x192",
-      "purpose": "any maskable"
-    },
-    {
       "src": "https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg",
       "type": "image/svg+xml",
-      "sizes": "512x512",
+      "sizes": "192x192",
       "purpose": "any maskable"
     }
+    
   ],
   "start_url": "/",
   "background_color": "#202123",

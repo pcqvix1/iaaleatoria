@@ -1,26 +1,6 @@
 {
   "short_name": "GeminiGPT",
   "name": "Gemini GPT - AI Assistant",
-  "icons": [
-    {
-      "src": "gemini.png", 
-      "type": "image/png",
-      "sizes": "192x192",
-      "purpose": "any"
-    },
-    {
-      "src": "https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg",
-      "type": "image/svg+xml",
-      "sizes": "512x512",
-      "purpose": "maskable"
-    },
-    {
-      "src": "https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg",
-      "type": "image/svg+xml",
-      "sizes": "any",
-      "purpose": "any"
-    }
-  ],
   "start_url": "/",
   "background_color": "#202123",
   "display": "standalone",

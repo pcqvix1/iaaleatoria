@@ -3,8 +3,8 @@
   "name": "Gemini GPT - AI Assistant",
   "icons": [
     {
-      "src": "gemini.svg", 
-      "type": "image/svg+xml",
+      "src": "gemini.png", 
+      "type": "image/png",
       "sizes": "192x192",
       "purpose": "any"
     },

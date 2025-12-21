@@ -4,13 +4,13 @@
   "description": "Assistente de IA powered by Google Gemini API",
   "icons": [
     {
-      "src": "icon192.png",
+      "src": "https://res.cloudinary.com/dqn28emva/image/upload/v1766355720/e6tmdedjn0ysonh9gaic.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any maskable"
     },
     {
-      "src": "icon512.png",
+      "src": "https://res.cloudinary.com/dqn28emva/image/upload/v1766355708/vjzof2vqyrwanx1dlxxg.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any maskable"

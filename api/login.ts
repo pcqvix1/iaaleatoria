@@ -1,10 +1,6 @@
-
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key_change_in_prod';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -32,13 +28,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ message: 'E-mail ou senha inválidos.' });
     }
 
-    // Generate JWT
-    const token = jwt.sign(
-      { userId: user.id, email: user.email },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
     const userToReturn = {
       id: user.id,
       name: user.name,
@@ -46,7 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       hasPassword: true,
     };
 
-    return res.status(200).json({ user: userToReturn, token });
+    return res.status(200).json(userToReturn);
 
   } catch (error) {
     console.error('Login error:', error);

@@ -1,0 +1,22 @@
+{
+  "name": "Gemini GPT",
+  "short_name": "GeminiGPT",
+  "description": "A fully functional clone of the ChatGPT interface powered by Google Gemini API.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#343541",
+  "theme_color": "#202123",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

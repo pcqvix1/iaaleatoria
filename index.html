@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" translate="no">
+<html lang="pt-BR" translate="no">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
@@ -7,10 +7,17 @@
     <meta name="theme-color" content="#202123" />
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="description" content="Gemini GPT - Assistente de IA powered by Google Gemini">
+    
     <title>Gemini GPT</title>
+    
+    <!-- PWA Manifest e Ícones -->
     <link rel="manifest" href="/manifest.json">
-    <link rel="apple-touch-icon" href="https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg">
-    <link rel="icon" type="image/png" href="https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg">
+    <link rel="apple-touch-icon" href="/icon192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon512.png">
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script>
       tailwind.config = {
@@ -42,12 +49,16 @@
         }
       }
     </script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
-  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script type="importmap">
+    
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    
+    <!-- Import Map -->
+    <script type="importmap">
 {
   "imports": {
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.26.0",
@@ -67,33 +78,40 @@
     "react-syntax-highlighter/": "https://aistudiocdn.com/react-syntax-highlighter@^16.1.0/"
   }
 }
-</script>
-<style>
-    /* Scrollbar styling */
-    ::-webkit-scrollbar {
+    </script>
+    
+    <!-- Custom Scrollbar Styles -->
+    <style>
+      /* Scrollbar styling */
+      ::-webkit-scrollbar {
         width: 10px;
         height: 10px;
-    }
-    ::-webkit-scrollbar-track {
+      }
+      ::-webkit-scrollbar-track {
         background: transparent;
-    }
-    ::-webkit-scrollbar-thumb {
+      }
+      ::-webkit-scrollbar-thumb {
         background: #d1d5db; /* gray-300 for light mode */
         border-radius: 5px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
+      }
+      ::-webkit-scrollbar-thumb:hover {
         background: #9ca3af; /* gray-400 for light mode */
-    }
+      }
 
-    /* Dark mode specific overrides using the 'dark' class on parent */
-    .dark ::-webkit-scrollbar-thumb {
+      /* Dark mode specific overrides using the 'dark' class on parent */
+      .dark ::-webkit-scrollbar-thumb {
         background: #444654; /* gpt-light-gray for dark mode */
-    }
-    .dark ::-webkit-scrollbar-thumb:hover {
+      }
+      .dark ::-webkit-scrollbar-thumb:hover {
         background: #565869; /* slightly lighter for hover in dark mode */
-    }
-</style>
-</head>
+      }
+      
+      /* Prevent iOS bounce effect */
+      body {
+        overscroll-behavior-y: none;
+      }
+    </style>
+  </head>
   <body class="bg-whatsapp-light-bg dark:bg-whatsapp-dark-bg overscroll-none">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>

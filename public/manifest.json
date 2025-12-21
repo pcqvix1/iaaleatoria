@@ -1,25 +1,28 @@
 {
   "short_name": "GeminiGPT",
   "name": "Gemini GPT - AI Assistant",
+  "description": "Assistente de IA powered by Google Gemini API",
   "icons": [
     {
-      "src": "icon192.png", 
+      "src": "/icon192.png",
       "type": "image/png",
       "sizes": "192x192",
-      "purpose": "any"
+      "purpose": "any maskable"
     },
     {
-      "src": "icon512.png",
+      "src": "/icon512.png",
       "type": "image/png",
       "sizes": "512x512",
-      "purpose": "maskable"
+      "purpose": "any maskable"
     }
-   
   ],
   "start_url": "/",
   "background_color": "#202123",
   "display": "standalone",
   "scope": "/",
   "theme_color": "#202123",
-  "orientation": "portrait-primary"
+  "orientation": "portrait-primary",
+  "categories": ["productivity", "utilities"],
+  "lang": "pt-BR",
+  "dir": "ltr"
 }

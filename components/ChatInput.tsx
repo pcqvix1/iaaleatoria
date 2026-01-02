@@ -291,7 +291,7 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
         <button
           onClick={handleAttachmentClick}
           aria-label="Anexar arquivo"
-          className="p-3 text-gray-500 hover:text-gpt-green dark:text-gray-400 dark:hover:text-gpt-green disabled:opacity-50"
+          className="pl-3 py-3 pr-1 text-gray-500 hover:text-gpt-green dark:text-gray-400 dark:hover:text-gpt-green disabled:opacity-50"
           disabled={isGenerating || !!attachedFile}
         >
           <PaperclipIcon />
@@ -300,7 +300,7 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
         <button
           onClick={() => setIsSearchEnabled(!isSearchEnabled)}
           aria-label="Pesquisar na Web"
-          className={`p-3 transition-colors ${isSearchEnabled ? 'text-gpt-green' : 'text-gray-500 hover:text-gpt-green dark:text-gray-400 dark:hover:text-gpt-green'}`}
+          className={`pl-1 py-3 pr-2 transition-colors ${isSearchEnabled ? 'text-gpt-green' : 'text-gray-500 hover:text-gpt-green dark:text-gray-400 dark:hover:text-gpt-green'}`}
           disabled={isGenerating}
           title={isSearchEnabled ? "Pesquisa na Web ativada" : "Ativar pesquisa na Web"}
         >

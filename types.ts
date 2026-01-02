@@ -20,13 +20,16 @@ export interface Message {
   groundingChunks?: GroundingChunk[];
 }
 
+export type ModelId = 'gemini-2.5-flash' | 'deepseek/deepseek-r1-0528:free' | 'openai/gpt-oss-20b';
+
 export interface Conversation {
   id: string;
   title: string;
   messages: Message[];
   createdAt: number;
   isTyping?: boolean;
-  systemInstruction?: string; // New field for custom persona
+  systemInstruction?: string;
+  modelId?: ModelId; // O modelo selecionado para esta conversa
 }
 
 export type Theme = 'light' | 'dark';

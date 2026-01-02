@@ -9,7 +9,7 @@ import { generateStream, generateConversationTitle } from './services/geminiServ
 import { authService } from './services/authService';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { MenuIcon } from './components/Icons';
-import { type Conversation, type Message, type Theme, type GroundingChunk, type User } from './types';
+import { type Conversation, type Message, type Theme, type GroundingChunk, type User, type ModelId } from './types';
 import { type ChatInputHandles } from './components/ChatInput';
 import { ToastProvider, useToast } from './components/Toast';
 
@@ -137,6 +137,7 @@ const AppContent: React.FC = () => {
       messages: [],
       createdAt: Date.now(),
       isTyping: false,
+      modelId: 'gemini-2.5-flash', // Default model
     };
     updateAndSaveConversations(prev => [newConversation, ...prev]);
     setCurrentConversationId(newId);
@@ -165,6 +166,7 @@ const AppContent: React.FC = () => {
       messages: [],
       createdAt: Date.now(),
       isTyping: false,
+      modelId: 'gemini-2.5-flash',
     };
     updateAndSaveConversations(prev => [newConversation, ...prev]);
     setCurrentConversationId(newId);
@@ -173,9 +175,11 @@ const AppContent: React.FC = () => {
   
   // Shared logic for processing stream
   const processStream = async (conversationId: string, history: Message[], prompt: string, attachment?: any) => {
+      const convo = conversations.find(c => c.id === conversationId);
       const aiMessageId = uuidv4();
       const aiMessage: Message = { id: aiMessageId, role: 'model', content: '', groundingChunks: [] };
-      const systemInstruction = conversations.find(c => c.id === conversationId)?.systemInstruction;
+      const systemInstruction = convo?.systemInstruction;
+      const modelId = convo?.modelId || 'gemini-2.5-flash';
 
       updateAndSaveConversations(prev => prev.map(c => 
           c.id === conversationId 
@@ -184,7 +188,7 @@ const AppContent: React.FC = () => {
       ));
 
       try {
-        const responseStream = await generateStream(history, prompt, attachment, systemInstruction);
+        const responseStream = await generateStream(history, prompt, modelId, attachment, systemInstruction);
         let fullResponseText = '';
         const allChunks: any[] = [];
         let updateScheduled = false;
@@ -226,7 +230,7 @@ const AppContent: React.FC = () => {
             switch (finishReason) {
                 case 'SAFETY': interruptionMessage = '\n\n---\n**Interrompido por segurança.**'; break;
                 case 'MAX_TOKENS': interruptionMessage = '\n\n---\n**Limite de tamanho atingido.**'; break;
-                default: if (finishReason !== 'STOP') interruptionMessage = `\n\n---\n**Interrompido.**`; break;
+                default: if (finishReason !== 'STOP' && finishReason !== undefined) interruptionMessage = `\n\n---\n**Interrompido.**`; break;
             }
         }
 
@@ -257,7 +261,7 @@ const AppContent: React.FC = () => {
         }
 
       } catch (error) {
-          console.error("Gemini API error:", error);
+          console.error("API error:", error);
           let errorMessage = 'Erro ao processar.';
           if (error instanceof Error) errorMessage = `Erro: ${error.message}`;
           addToast("Erro na geração da resposta", "error");
@@ -285,7 +289,6 @@ const AppContent: React.FC = () => {
         ...(attachment && { attachment }),
     };
     
-    // Add user message to state FIRST
     updateAndSaveConversations(prev => prev.map(c => 
       c.id === conversationIdToUpdate 
         ? { ...c, messages: [...c.messages, userMessage] }
@@ -293,10 +296,6 @@ const AppContent: React.FC = () => {
     ));
 
     const conversationHistory = conversations.find(c => c.id === conversationIdToUpdate)?.messages ?? [];
-    
-    // Process stream with updated history (including the new user message passed effectively via prompt argument logic in previous, but let's be cleaner)
-    // Actually generateStream expects history WITHOUT the new prompt usually, or we pass newPrompt param.
-    // Let's stick to the pattern: History = existing messages. NewPrompt = current input.
     
     await processStream(conversationIdToUpdate, conversationHistory, input, attachment);
   };
@@ -315,18 +314,16 @@ const AppContent: React.FC = () => {
       // Update state to remove everything after and including the edited message
       updateAndSaveConversations(prev => prev.map(c => 
           c.id === currentConversationId 
-          ? { ...c, messages: truncatedMessages } // We will add the updated user message inside handleSendMessage logic equivalent
+          ? { ...c, messages: truncatedMessages } 
           : c
       ));
 
-      // Trigger generation effectively as a new message, but with history truncated
-      // We manually add the edited user message and trigger stream
       stopGenerationRef.current = false;
       const updatedUserMessage: Message = { 
-          id: uuidv4(), // New ID for the "new" branch
+          id: uuidv4(),
           role: 'user', 
           content: newContent,
-          attachment: convo.messages[messageIndex].attachment // Preserve attachment if any
+          attachment: convo.messages[messageIndex].attachment 
       };
 
       updateAndSaveConversations(prev => prev.map(c => 
@@ -344,9 +341,8 @@ const AppContent: React.FC = () => {
       if (!convo || convo.messages.length === 0) return;
 
       const lastMessage = convo.messages[convo.messages.length - 1];
-      if (lastMessage.role !== 'model') return; // Can only regenerate if last was AI
+      if (lastMessage.role !== 'model') return; 
 
-      // Remove last AI message
       const messagesWithoutLast = convo.messages.slice(0, -1);
       const lastUserMessage = messagesWithoutLast[messagesWithoutLast.length - 1];
       
@@ -360,8 +356,6 @@ const AppContent: React.FC = () => {
 
       stopGenerationRef.current = false;
       
-      // We need to re-send the prompt of the last user message
-      // History is everything BEFORE the last user message
       const historyForStream = messagesWithoutLast.slice(0, -1);
       
       await processStream(currentConversationId, historyForStream, lastUserMessage.content, lastUserMessage.attachment);
@@ -373,6 +367,14 @@ const AppContent: React.FC = () => {
           c.id === currentConversationId ? { ...c, systemInstruction: instruction } : c
       ));
       addToast("Instruções atualizadas", "success");
+  };
+
+  const handleUpdateModel = (modelId: ModelId) => {
+    if (!currentConversationId) return;
+    updateAndSaveConversations(prev => prev.map(c => 
+        c.id === currentConversationId ? { ...c, modelId: modelId } : c
+    ));
+    addToast(`Modelo alterado para ${modelId}`, "info");
   };
 
   const handleStopGenerating = () => {
@@ -527,7 +529,7 @@ const AppContent: React.FC = () => {
           {!isSidebarOpen && view === 'chat' && (
             <button 
               onClick={() => setIsSidebarOpen(true)}
-              className="absolute top-2 left-2 z-30 p-2 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700/50 shadow-sm bg-white/50 dark:bg-black/20 backdrop-blur-sm"
+              className="absolute top-2 left-2 z-30 p-2 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700/50 shadow-sm bg-white/50 dark:bg-black/20 backdrop-blur-sm md:hidden"
               aria-label="Abrir barra lateral"
             >
               <MenuIcon />
@@ -545,6 +547,7 @@ const AppContent: React.FC = () => {
                 onEditMessage={handleEditMessage}
                 onRegenerate={handleRegenerate}
                 onUpdateSystemInstruction={handleUpdateSystemInstruction}
+                onUpdateModel={handleUpdateModel}
               />
             ) : (
               <AccountPage

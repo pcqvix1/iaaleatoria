@@ -1,10 +1,12 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { type Conversation } from '../types';
+import { type Conversation, type ModelId } from '../types';
 import { MessageBubble } from './Message';
 import { ChatInput, type ChatInputHandles } from './ChatInput';
 import { UploadCloudIcon, TuneIcon } from './Icons';
 import { SystemInstructionModal } from './SystemInstructionModal';
+import { ModelSelector } from './ModelSelector';
+import { useToast } from './Toast';
 
 interface ChatViewProps {
   conversation: Conversation | undefined;
@@ -16,6 +18,7 @@ interface ChatViewProps {
   onEditMessage?: (messageId: string, newContent: string) => void;
   onRegenerate?: () => void;
   onUpdateSystemInstruction?: (instruction: string) => void;
+  onUpdateModel?: (modelId: ModelId) => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({ 
@@ -27,7 +30,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     chatInputRef,
     onEditMessage,
     onRegenerate,
-    onUpdateSystemInstruction
+    onUpdateSystemInstruction,
+    onUpdateModel
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -35,6 +39,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const { addToast } = useToast();
+
+  const currentModelId = conversation?.modelId || 'gemini-2.5-flash';
 
   // Scroll logic
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
@@ -95,8 +102,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      onFileDrop(e.dataTransfer.files[0]);
+      const file = e.dataTransfer.files[0];
+      
+      // Validação de Modelo para Drag & Drop
+      if (currentModelId === 'openai/gpt-oss-20b') {
+          addToast('GPT-OSS 20B suporta apenas texto. Troque para o Gemini para anexar arquivos.', 'error');
+          return;
+      }
+      
+      if (currentModelId === 'deepseek/deepseek-r1-0528:free') {
+          if (file.type.startsWith('image/')) {
+              addToast('DeepSeek R1 não suporta imagens. Apenas arquivos de texto/código.', 'error');
+              return;
+          }
+      }
+
+      onFileDrop(file);
       e.dataTransfer.clearData();
     }
   };
@@ -116,10 +139,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
         </div>
       )}
       
-      {/* Header with Persona Settings */}
+      {/* Header with Model Selector and Settings */}
       <header className="relative w-full p-2 flex justify-between items-center text-sm text-gray-500 dark:text-gray-400 border-b border-gray-300 dark:border-gray-700/50 flex-shrink-0 bg-white/50 dark:bg-black/20 backdrop-blur-sm z-10">
-        <div className="w-8"></div> {/* Spacer */}
-        <span>{conversation?.title || 'Nova Conversa'}</span>
+        <div className="w-8 md:hidden"></div> {/* Mobile Spacer for Menu Button */}
+        
+        <div className="flex-1 flex justify-center md:justify-start">
+             <ModelSelector 
+                currentModel={currentModelId} 
+                onSelectModel={(model) => onUpdateModel?.(model)}
+                disabled={isTyping}
+             />
+        </div>
+
         <button 
             onClick={() => setIsSettingsOpen(true)}
             className={`p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors ${conversation?.systemInstruction ? 'text-gpt-green' : ''}`}
@@ -173,6 +204,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             onSendMessage={onSendMessage} 
             isGenerating={isTyping} 
             onStopGenerating={onStopGenerating}
+            modelId={currentModelId}
           />
         </div>
       </div>
@@ -200,7 +232,7 @@ const WelcomeScreen: React.FC = () => (
     </div>
     <h1 className="text-2xl font-semibold text-gray-800 dark:text-gray-200 mb-2">Como posso te ajudar hoje?</h1>
     <p className="max-w-md text-sm opacity-80">
-        Posso ajudar com escrita, análise, código e muito mais. Experimente enviar uma mensagem ou anexar um arquivo.
+        Posso ajudar com escrita, análise, código e muito mais. Experimente enviar uma mensagem, anexar um arquivo ou trocar de modelo.
     </p>
   </div>
 );

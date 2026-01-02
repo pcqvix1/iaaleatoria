@@ -1,5 +1,5 @@
 
-import { type Message } from '../types';
+import { type Message, type ModelId } from '../types';
 
 // We do NOT import GoogleGenAI here to avoid exposing secrets or heavy SDKs on client.
 // We mock the types we need.
@@ -9,8 +9,7 @@ export interface GenerateContentResponse {
   usageMetadata?: any;
 }
 
-const chatModel = 'gemini-3-flash-preview';
-const visionModel = 'gemini-3-flash-preview';
+const visionModel = 'gemini-2.5-flash-image'; // Using specific image model if needed, or rely on modelId logic in backend
 
 type ContentPart = { text: string } | { inlineData: { mimeType: string; data: string } };
 
@@ -18,6 +17,7 @@ type ContentPart = { text: string } | { inlineData: { mimeType: string; data: st
 export async function* generateStream(
   history: Message[],
   newPrompt: string,
+  modelId: ModelId,
   attachment?: { data: string; mimeType: string; name: string; },
   systemInstruction?: string
 ): AsyncGenerator<{ text: string; candidates?: any[] }> {
@@ -87,19 +87,21 @@ export async function* generateStream(
     contents.push({ role: 'user', parts: userParts });
   }
 
+  // Sanitize contents: ensure valid parts
   const filteredContents = contents.filter(c => c.parts.length > 0 && c.parts.some(p => ('text' in p && p.text.trim()) || 'inlineData' in p));
-  const modelToUse = attachment?.mimeType.startsWith('image/') ? visionModel : chatModel;
   
   // Use custom system instruction or default
   const instruction = systemInstruction || 'Você é um assistente de IA prestativo e amigável. Responda em português do Brasil e formate as respostas usando Markdown.';
 
   const payload = {
-    model: modelToUse,
+    model: modelId,
     contents: filteredContents,
     config: {
       systemInstruction: instruction,
       maxOutputTokens: 8192,
-      thinkingConfig: { thinkingBudget: 1024 },
+      // thinkingConfig is only for Gemini 2.5/3. 
+      // Backend will handle stripping config if not supported by OpenRouter models, 
+      // but we can leave it here as generic 'config'.
     },
   };
 
@@ -197,7 +199,8 @@ ${context}
 Título Sugerido:`;
 
   try {
-    const stream = generateStream([], prompt);
+    // We use gemini-2.5-flash for cheap title generation regardless of conversation model
+    const stream = generateStream([], prompt, 'gemini-2.5-flash');
     let title = '';
     for await (const chunk of stream) {
         title += chunk.text;

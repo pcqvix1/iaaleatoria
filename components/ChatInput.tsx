@@ -1,5 +1,8 @@
+
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { PaperAirplaneIcon, StopIcon, PaperclipIcon, CloseIcon, FileIcon } from './Icons';
+import { type ModelId } from '../types';
+import { useToast } from './Toast';
 
 declare const pdfjsLib: any;
 declare const mammoth: any;
@@ -10,16 +13,18 @@ interface ChatInputProps {
   onSendMessage: (input: string, attachment?: { data: string; mimeType: string; name: string; }) => void;
   isGenerating: boolean;
   onStopGenerating: () => void;
+  modelId?: ModelId;
 }
 
 export type ChatInputHandles = {
   setFile: (file: File) => void;
 };
 
-export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendMessage, isGenerating, onStopGenerating }, ref) => {
+export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendMessage, isGenerating, onStopGenerating, modelId = 'gemini-2.5-flash' }, ref) => {
   const [input, setInput] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const { addToast } = useToast();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -45,8 +50,27 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
     }
   }, [input]);
   
+  const validateFileForModel = (file: File): boolean => {
+      if (modelId === 'openai/gpt-oss-20b') {
+          addToast('GPT-OSS 20B suporta apenas texto. Anexos não são permitidos.', 'error');
+          return false;
+      }
+      
+      if (modelId === 'deepseek/deepseek-r1-0528:free') {
+          if (file.type.startsWith('image/')) {
+              addToast('DeepSeek R1 não suporta imagens. Apenas arquivos de texto/código.', 'error');
+              return false;
+          }
+      }
+      return true;
+  };
+
   const processFile = (file: File) => {
     if (attachedFile) return;
+
+    if (!validateFileForModel(file)) {
+        return;
+    }
 
     setAttachedFile(file);
     if (file.type.startsWith('image/')) {
@@ -65,13 +89,15 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
     if (file) {
       processFile(file);
     }
+    // Clear the input so selecting the same file again works
+    e.target.value = '';
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData.items;
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      if (item.kind === 'file' && item.type.startsWith('image/')) {
+      if (item.kind === 'file') {
         const file = item.getAsFile();
         if (file) {
           e.preventDefault();
@@ -80,6 +106,14 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
         }
       }
     }
+  };
+  
+  const handleAttachmentClick = () => {
+      if (modelId === 'openai/gpt-oss-20b') {
+          addToast('GPT-OSS 20B suporta apenas texto. Troque para o Gemini para anexar arquivos.', 'error');
+          return;
+      }
+      fileInputRef.current?.click();
   };
 
   const handleRemoveFile = () => {
@@ -254,7 +288,7 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
             className="hidden" 
         />
         <button
-          onClick={() => fileInputRef.current?.click()}
+          onClick={handleAttachmentClick}
           aria-label="Anexar arquivo"
           className="p-3 text-gray-500 hover:text-gpt-green dark:text-gray-400 dark:hover:text-gpt-green disabled:opacity-50"
           disabled={isGenerating || !!attachedFile}

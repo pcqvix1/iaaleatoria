@@ -174,7 +174,7 @@ const AppContent: React.FC = () => {
   };
   
   // Shared logic for processing stream
-  const processStream = async (conversationId: string, history: Message[], prompt: string, attachment?: any) => {
+  const processStream = async (conversationId: string, history: Message[], prompt: string, attachment?: any, useSearch?: boolean) => {
       const convo = conversations.find(c => c.id === conversationId);
       const aiMessageId = uuidv4();
       const aiMessage: Message = { id: aiMessageId, role: 'model', content: '', groundingChunks: [] };
@@ -188,7 +188,7 @@ const AppContent: React.FC = () => {
       ));
 
       try {
-        const responseStream = await generateStream(history, prompt, modelId, attachment, systemInstruction);
+        const responseStream = await generateStream(history, prompt, modelId, attachment, systemInstruction, useSearch);
         let fullResponseText = '';
         const allChunks: any[] = [];
         let updateScheduled = false;
@@ -253,7 +253,10 @@ const AppContent: React.FC = () => {
         }));
 
         if (!interruptionMessage && history.length === 0) {
-             generateConversationTitle([...history, { role: 'user', content: prompt, id: 'temp' } as Message, { ...aiMessage, content: finalContent }]).then(newTitle => {
+             generateConversationTitle(
+                 [...history, { role: 'user', content: prompt, id: 'temp' } as Message, { ...aiMessage, content: finalContent }], 
+                 modelId
+             ).then(newTitle => {
                 if (newTitle) {
                     updateAndSaveConversations(prev => prev.map(c => c.id === conversationId ? { ...c, title: newTitle } : c));
                 }
@@ -275,7 +278,7 @@ const AppContent: React.FC = () => {
   };
 
 
-  const handleSendMessage = async (input: string, attachment?: { data: string; mimeType: string; name: string; }) => {
+  const handleSendMessage = async (input: string, attachment?: { data: string; mimeType: string; name: string; }, useSearch?: boolean) => {
     if (!currentUser || (!input.trim() && !attachment)) return;
   
     const conversationIdToUpdate = ensureConversationExists();
@@ -297,7 +300,7 @@ const AppContent: React.FC = () => {
 
     const conversationHistory = conversations.find(c => c.id === conversationIdToUpdate)?.messages ?? [];
     
-    await processStream(conversationIdToUpdate, conversationHistory, input, attachment);
+    await processStream(conversationIdToUpdate, conversationHistory, input, attachment, useSearch);
   };
   
   const handleEditMessage = async (messageId: string, newContent: string) => {

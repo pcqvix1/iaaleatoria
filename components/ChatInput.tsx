@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
-import { PaperAirplaneIcon, StopIcon, PaperclipIcon, CloseIcon, FileIcon } from './Icons';
+import { PaperAirplaneIcon, StopIcon, PaperclipIcon, CloseIcon, FileIcon, GlobeIcon } from './Icons';
 import { type ModelId } from '../types';
 import { useToast } from './Toast';
 
@@ -10,7 +10,7 @@ declare const XLSX: any;
 declare const JSZip: any;
 
 interface ChatInputProps {
-  onSendMessage: (input: string, attachment?: { data: string; mimeType: string; name: string; }) => void;
+  onSendMessage: (input: string, attachment?: { data: string; mimeType: string; name: string; }, useSearch?: boolean) => void;
   isGenerating: boolean;
   onStopGenerating: () => void;
   modelId?: ModelId;
@@ -24,6 +24,7 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
   const [input, setInput] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const [isSearchEnabled, setIsSearchEnabled] = useState(false);
   const { addToast } = useToast();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -128,14 +129,14 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
     if ((!input.trim() && !attachedFile) || isGenerating) return;
 
     if (!attachedFile) {
-      onSendMessage(input);
+      onSendMessage(input, undefined, isSearchEnabled);
       setInput('');
       return;
     }
 
     const file = attachedFile;
     const cleanupAndSend = (attachmentData: { data: string; mimeType: string; name: string; }) => {
-      onSendMessage(input, attachmentData);
+      onSendMessage(input, attachmentData, isSearchEnabled);
       handleRemoveFile();
       setInput('');
     };
@@ -295,6 +296,17 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
         >
           <PaperclipIcon />
         </button>
+        
+        <button
+          onClick={() => setIsSearchEnabled(!isSearchEnabled)}
+          aria-label="Pesquisar na Web"
+          className={`p-3 transition-colors ${isSearchEnabled ? 'text-gpt-green' : 'text-gray-500 hover:text-gpt-green dark:text-gray-400 dark:hover:text-gpt-green'}`}
+          disabled={isGenerating}
+          title={isSearchEnabled ? "Pesquisa na Web ativada" : "Ativar pesquisa na Web"}
+        >
+          <GlobeIcon />
+        </button>
+
         <textarea
           ref={textareaRef}
           value={input}

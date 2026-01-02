@@ -19,7 +19,8 @@ export async function* generateStream(
   newPrompt: string,
   modelId: ModelId,
   attachment?: { data: string; mimeType: string; name: string; },
-  systemInstruction?: string
+  systemInstruction?: string,
+  useSearch?: boolean
 ): AsyncGenerator<{ text: string; candidates?: any[] }> {
   
   // 0. Context Window Management (Sliding Window)
@@ -92,17 +93,20 @@ export async function* generateStream(
   
   // Use custom system instruction or default
   const instruction = systemInstruction || 'Você é um assistente de IA prestativo e amigável. Responda em português do Brasil e formate as respostas usando Markdown.';
+  
+  const config: any = {
+      systemInstruction: instruction,
+      maxOutputTokens: 8192,
+  };
+
+  if (useSearch) {
+      config.tools = [{ googleSearch: {} }];
+  }
 
   const payload = {
     model: modelId,
     contents: filteredContents,
-    config: {
-      systemInstruction: instruction,
-      maxOutputTokens: 8192,
-      // thinkingConfig is only for Gemini 2.5/3. 
-      // Backend will handle stripping config if not supported by OpenRouter models, 
-      // but we can leave it here as generic 'config'.
-    },
+    config: config,
   };
 
   // 2. Fetch from our own backend
@@ -176,7 +180,8 @@ export async function* generateStream(
 }
 
 export async function generateConversationTitle(
-  messages: Message[]
+  messages: Message[],
+  modelId: ModelId = 'gemini-2.5-flash'
 ): Promise<string> {
   const context = messages
     .slice(0, 2)
@@ -199,14 +204,29 @@ ${context}
 Título Sugerido:`;
 
   try {
-    // We use gemini-2.5-flash for cheap title generation regardless of conversation model
-    const stream = generateStream([], prompt, 'gemini-2.5-flash');
-    let title = '';
-    for await (const chunk of stream) {
-        title += chunk.text;
+    // Select generation model based on conversation model to ensure valid keys are used
+    let titleModel: ModelId = 'gemini-2.5-flash';
+    
+    if (modelId.startsWith('deepseek') || modelId.includes('openrouter')) {
+        titleModel = modelId;
+    } else if (modelId.startsWith('openai') || modelId.includes('groq')) {
+        titleModel = modelId;
     }
 
-    title = title.replace(/^(título|title):?\s*/i, '');
+    const stream = generateStream([], prompt, titleModel);
+    let fullResponse = '';
+    for await (const chunk of stream) {
+        fullResponse += chunk.text;
+    }
+
+    // Post-processing: remove reasoning (lines starting with >) if model is DeepSeek/Groq
+    let title = fullResponse
+        .split('\n')
+        .filter(line => !line.trim().startsWith('>'))
+        .join(' ')
+        .trim();
+
+    title = title.replace(/^(título|title|sugestão):?\s*/i, '');
     title = title.replace(/^"|"$|^\s*['`]|['`]\s*$/g, '').replace(/[.,!?;:]$/, '').trim();
 
     return title || "Nova Conversa";

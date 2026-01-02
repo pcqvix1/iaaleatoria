@@ -67,6 +67,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           temperature: config?.temperature ?? 0.7,
       };
 
+      // --- HYBRID GROUNDING LOGIC FOR NON-GEMINI MODELS ---
+      // If the user requested Google Search (via config.tools), we use Gemini to fetch context first.
+      let groundingContext = '';
+      let groundingMetadata = null;
+
+      if (config?.tools && config.tools.some((t: any) => t.googleSearch)) {
+         if (ai) {
+             try {
+                // Extract the last user message to use as the search query
+                const lastUserMessage = contents
+                    .slice()
+                    .reverse()
+                    .find((c: any) => c.role === 'user');
+                
+                const searchQuery = lastUserMessage?.parts?.[0]?.text || '';
+                
+                if (searchQuery) {
+                    const searchResult = await ai.models.generateContent({
+                        model: 'gemini-2.5-flash',
+                        contents: [{ role: 'user', parts: [{ text: searchQuery }] }],
+                        config: { tools: [{ googleSearch: {} }] }
+                    });
+                    
+                    if (searchResult.candidates && searchResult.candidates.length > 0) {
+                        groundingMetadata = searchResult.candidates[0].groundingMetadata;
+                        // The text returned by Gemini when using search is often a grounded summary.
+                        // We use this as high-quality context.
+                        groundingContext = searchResult.text || '';
+                    }
+                }
+             } catch (e) {
+                 console.error("Grounding fetch failed:", e);
+                 // Proceed without grounding on error
+             }
+         }
+      }
+
       // --- Configuration Selection ---
       if (model.includes('deepseek') || model.includes('openrouter')) {
           // OpenRouter
@@ -115,6 +152,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (config?.systemInstruction) {
         messages.unshift({ role: 'system', content: config.systemInstruction });
       }
+
+      // Insert Grounding Context if we fetched it
+      if (groundingContext) {
+          const groundingSystemMessage = `
+INFORMAÇÃO DE PESQUISA EM TEMPO REAL (GOOGLE):
+Abaixo estão informações obtidas via Google Search para ajudar a responder a solicitação do usuário.
+Use estas informações como fonte de verdade para fatos atuais.
+
+--- INÍCIO DA PESQUISA ---
+${groundingContext}
+--- FIM DA PESQUISA ---
+`;
+          // Inject as a system message right before the latest messages or at the top
+          messages.splice(messages.length - 1, 0, { role: 'system', content: groundingSystemMessage });
+      }
       
       // Finalize Body
       requestBody.model = targetModel;
@@ -138,6 +190,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const reader = externalResponse.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+
+      // If we have grounding metadata from the hybrid step, send it in the first chunk
+      if (groundingMetadata) {
+          const metaChunk = JSON.stringify({
+              text: '', // No text yet
+              candidates: [{ groundingMetadata: groundingMetadata }] // Just metadata for the frontend to render sources
+          });
+          res.write(metaChunk + delimiter);
+      }
 
       while (true) {
         const { done, value } = await reader.read();

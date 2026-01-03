@@ -1,11 +1,9 @@
-
 import { type Conversation, type User } from '../types';
 
-// Detects the base URL. 
-// In development/web, it falls back to empty string (relative path).
-// For Capacitor/Mobile, set VITE_API_URL in your .env file to your Vercel production URL (e.g., https://myapp.vercel.app).
-const BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
-const API_BASE_URL = `${BASE_URL}/api`;
+// This service is now designed to communicate with a backend API.
+// The frontend is ready, but you will need to build the API endpoints on Vercel.
+
+const API_BASE_URL = '/api'; // Assuming Vercel Serverless Functions are in the /api directory
 
 const CURRENT_USER_KEY = 'currentUser';
 

@@ -1,10 +1,8 @@
-
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { allowCors } from './_utils/cors';
 
-async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
     return res.status(405).json({ message: 'Method Not Allowed' });
@@ -47,5 +45,3 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
-
-export default allowCors(handler);

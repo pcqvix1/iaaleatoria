@@ -11,10 +11,6 @@ export interface GenerateContentResponse {
 
 const visionModel = 'gemini-2.5-flash-image'; // Using specific image model if needed, or rely on modelId logic in backend
 
-// Detects the base URL. 
-// For Capacitor/Mobile, set VITE_API_URL in your .env file to your Vercel production URL.
-const BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
-
 type ContentPart = { text: string } | { inlineData: { mimeType: string; data: string } };
 
 // Function for text and file chat
@@ -103,12 +99,7 @@ export async function* generateStream(
       maxOutputTokens: 8192,
   };
 
-  // Logic for Auto-Grounding (Search):
-  // 1. If it's a Gemini/Veo model, ALWAYS include the tool. The model itself decides when to use it (Smart/Dynamic).
-  // 2. If it's another model (DeepSeek/GPT), allow useSearch flag (though currently disabled in UI).
-  if (modelId.includes('gemini') || modelId.includes('veo')) {
-      config.tools = [{ googleSearch: {} }];
-  } else if (useSearch) {
+  if (useSearch) {
       config.tools = [{ googleSearch: {} }];
   }
 
@@ -118,9 +109,8 @@ export async function* generateStream(
     config: config,
   };
 
-  // 2. Fetch from our own backend (BFF)
-  // We use the configured BASE_URL to support mobile apps/external clients
-  const response = await fetch(`${BASE_URL}/api/chat`, {
+  // 2. Fetch from our own backend
+  const response = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

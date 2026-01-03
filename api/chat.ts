@@ -1,7 +1,6 @@
 
 import { GoogleGenAI } from '@google/genai';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { allowCors } from './_utils/cors';
 
 const apiKey = process.env.API_KEY;
 const openRouterKey = process.env.OPENROUTER_API_KEY;
@@ -81,7 +80,7 @@ ${contextText}
 `;
 }
 
-async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
@@ -157,13 +156,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         .trim() || '';
 
       // 2. Decisão inteligente de busca (Toggle Manual OU Heurística de Palavras-Chave)
-      // Bloqueio explícito para DeepSeek e GPT-OSS
-      const isSearchSupported = !model.includes('deepseek') && !model.includes('gpt-oss');
-
-      const needsSearch = isSearchSupported && (
-        config?.tools?.some((t: any) => t.googleSearch) || 
-        (searchQuery && /quem|quando|quanto|onde|preço|valor|cotação|lançamento|evento|202[4-9]|hoje|ontem|agora|notícia/i.test(searchQuery))
-      );
+      // Regex procura por perguntas de tempo, pessoas ou dados recentes
+      const needsSearch = config?.tools?.some((t: any) => t.googleSearch) || 
+                          (searchQuery && /quem|quando|quanto|onde|preço|valor|cotação|lançamento|evento|202[4-9]|hoje|ontem|agora|notícia/i.test(searchQuery));
 
       if (needsSearch && searchQuery) {
          const searchResults = await performGoogleSearch(searchQuery);
@@ -326,5 +321,3 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     res.end();
   }
 }
-
-export default allowCors(handler);

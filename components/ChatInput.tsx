@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
-import { PaperAirplaneIcon, StopIcon, PaperclipIcon, CloseIcon, FileIcon, GlobeIcon } from './Icons';
+import { PaperAirplaneIcon, StopIcon, PaperclipIcon, CloseIcon, FileIcon } from './Icons';
 import { type ModelId } from '../types';
 import { useToast } from './Toast';
 
@@ -24,7 +24,8 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
   const [input, setInput] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
-  const [isSearchEnabled, setIsSearchEnabled] = useState(false);
+  // Manual search toggle is deprecated; Gemini handles it automatically, others don't support it.
+  const [isSearchEnabled] = useState(false); 
   const { addToast } = useToast();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -128,15 +129,18 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
   const handleSend = async () => {
     if ((!input.trim() && !attachedFile) || isGenerating) return;
 
+    // We pass isSearchEnabled (false) but the service now ignores this for Gemini and forces it to true/auto.
+    const useSearch = isSearchEnabled;
+
     if (!attachedFile) {
-      onSendMessage(input, undefined, isSearchEnabled);
+      onSendMessage(input, undefined, useSearch);
       setInput('');
       return;
     }
 
     const file = attachedFile;
     const cleanupAndSend = (attachmentData: { data: string; mimeType: string; name: string; }) => {
-      onSendMessage(input, attachmentData, isSearchEnabled);
+      onSendMessage(input, attachmentData, useSearch);
       handleRemoveFile();
       setInput('');
     };
@@ -297,15 +301,7 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
           <PaperclipIcon />
         </button>
         
-        <button
-          onClick={() => setIsSearchEnabled(!isSearchEnabled)}
-          aria-label="Pesquisar na Web"
-          className={`pl-1 py-3 pr-2 transition-colors ${isSearchEnabled ? 'text-gpt-green' : 'text-gray-500 hover:text-gpt-green dark:text-gray-400 dark:hover:text-gpt-green'}`}
-          disabled={isGenerating}
-          title={isSearchEnabled ? "Pesquisa na Web ativada" : "Ativar pesquisa na Web"}
-        >
-          <GlobeIcon />
-        </button>
+        {/* Globe Icon Removed - Search is now Automatic for Gemini or Disabled for others */}
 
         <textarea
           ref={textareaRef}
@@ -315,7 +311,7 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
           onPaste={handlePaste}
           placeholder="Digite uma mensagem..."
           rows={1}
-          className="w-full resize-none bg-transparent py-2.5 text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none max-h-48"
+          className="w-full resize-none bg-transparent py-2.5 pl-2 text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none max-h-48"
           disabled={isGenerating}
         />
         {isGenerating ? (

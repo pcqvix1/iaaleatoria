@@ -1,8 +1,9 @@
 
 import { sql } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { allowCors } from './_utils/cors';
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'GET') {
     return getConversations(req, res);
   }
@@ -60,3 +61,5 @@ async function saveConversations(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ message: 'Erro ao salvar conversas.' });
   }
 }
+
+export default allowCors(handler);

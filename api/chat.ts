@@ -5,9 +5,80 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 const apiKey = process.env.API_KEY;
 const openRouterKey = process.env.OPENROUTER_API_KEY;
 const groqKey = process.env.GROQ_API_KEY;
+const googleSearchKey = process.env.GOOGLE_API_KEY_SEARCH;
+const googleCxId = process.env.GOOGLE_CX_ID;
 
 // Initialize Google Gemini Client
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+
+// --- SEARCH GROUNDING MODULE ---
+
+interface SearchResult {
+  title: string;
+  snippet: string;
+  link: string;
+}
+
+/**
+ * Realiza busca usando Google Custom Search JSON API
+ */
+async function performGoogleSearch(query: string): Promise<SearchResult[]> {
+  if (!googleSearchKey || !googleCxId) {
+    console.warn("Google Search API Key or CX ID not configured.");
+    return [];
+  }
+
+  try {
+    const url = `https://www.googleapis.com/customsearch/v1?key=${googleSearchKey}&cx=${googleCxId}&q=${encodeURIComponent(query)}&num=5`;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error(`Google Search failed: ${response.statusText}`);
+      return [];
+    }
+
+    const data = await response.json();
+    
+    if (!data.items || !Array.isArray(data.items)) {
+      return [];
+    }
+
+    // Normaliza os resultados
+    return data.items.map((item: any) => ({
+      title: item.title || 'Sem título',
+      snippet: (item.snippet || '').replace(/\n/g, ' ').trim(), // Remove quebras de linha para manter limpo
+      link: item.link
+    }));
+
+  } catch (error) {
+    console.error("Error executing Google Search:", error);
+    return [];
+  }
+}
+
+/**
+ * Constrói o prompt com contexto de busca (Grounding)
+ */
+function buildGroundedPrompt(searchResults: SearchResult[]): string {
+  if (searchResults.length === 0) return "";
+
+  const contextText = searchResults.map(r => `Título: ${r.title}\nResumo: ${r.snippet}\nLink: ${r.link}`).join('\n\n');
+
+  return `
+INSTRUÇÕES DE GROUNDING (OBRIGATÓRIO):
+
+- Você possui acesso a informações em tempo real fornecidas abaixo.
+- Use EXCLUSIVAMENTE as informações abaixo para responder à pergunta do usuário sobre este tópico.
+- NÃO invente URLs, links ou referências que não estejam na lista.
+- Se a resposta não estiver explicitamente nos dados, responda: "Não encontrei informações suficientes nos resultados da busca."
+- Responda de forma direta e informativa.
+- Use PRIORITARIAMENTE as informações abaixo.
+- Não invente fatos fora dos dados fornecidos.
+
+DADOS DA PESQUISA:
+${contextText}
+`;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -27,7 +98,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // ==================================================================================
-    // 1. GOOGLE GEMINI MODELS
+    // 1. GOOGLE GEMINI MODELS (Native Grounding)
     // ==================================================================================
     if (model.includes('gemini') || model.includes('veo')) {
       if (!ai) {
@@ -43,6 +114,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
 
       for await (const chunk of responseStream) {
+        // NOTE: If Gemini starts supporting separate reasoning field in chunks, map it here.
+        // Currently relying on standard text output.
         const chunkData = JSON.stringify({
           text: chunk.text,
           candidates: chunk.candidates,
@@ -52,7 +125,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } 
     // ==================================================================================
-    // 2. OPENAI-COMPATIBLE MODELS (OpenRouter & Groq)
+    // 2. OPENAI-COMPATIBLE MODELS (DeepSeek & GPT-OSS via OpenRouter/Groq)
     // ==================================================================================
     else {
       let apiUrl = '';
@@ -67,40 +140,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           temperature: config?.temperature ?? 0.7,
       };
 
-      // --- HYBRID GROUNDING LOGIC FOR NON-GEMINI MODELS ---
-      // If the user requested Google Search (via config.tools), we use Gemini to fetch context first.
-      let groundingContext = '';
+      // --- SEARCH GROUNDING MIDDLEWARE ---
+      let groundingSystemMessage = '';
       let groundingMetadata = null;
 
-      if (config?.tools && config.tools.some((t: any) => t.googleSearch)) {
-         if (ai) {
-             try {
-                // Extract the last user message to use as the search query
-                const lastUserMessage = contents
-                    .slice()
-                    .reverse()
-                    .find((c: any) => c.role === 'user');
-                
-                const searchQuery = lastUserMessage?.parts?.[0]?.text || '';
-                
-                if (searchQuery) {
-                    const searchResult = await ai.models.generateContent({
-                        model: 'gemini-2.5-flash',
-                        contents: [{ role: 'user', parts: [{ text: searchQuery }] }],
-                        config: { tools: [{ googleSearch: {} }] }
-                    });
-                    
-                    if (searchResult.candidates && searchResult.candidates.length > 0) {
-                        groundingMetadata = searchResult.candidates[0].groundingMetadata;
-                        // The text returned by Gemini when using search is often a grounded summary.
-                        // We use this as high-quality context.
-                        groundingContext = searchResult.text || '';
-                    }
-                }
-             } catch (e) {
-                 console.error("Grounding fetch failed:", e);
-                 // Proceed without grounding on error
-             }
+      // 1. Extração robusta da query (Junta todas as partes de texto)
+      const lastUserMessage = contents
+        .slice()
+        .reverse()
+        .find((c: any) => c.role === 'user');
+      
+      const searchQuery = lastUserMessage?.parts
+        ?.map((p: any) => p.text || '')
+        .join(' ')
+        .trim() || '';
+
+      // 2. Decisão inteligente de busca (Toggle Manual OU Heurística de Palavras-Chave)
+      // Regex procura por perguntas de tempo, pessoas ou dados recentes
+      const needsSearch = config?.tools?.some((t: any) => t.googleSearch) || 
+                          (searchQuery && /quem|quando|quanto|onde|preço|valor|cotação|lançamento|evento|202[4-9]|hoje|ontem|agora|notícia/i.test(searchQuery));
+
+      if (needsSearch && searchQuery) {
+         const searchResults = await performGoogleSearch(searchQuery);
+         
+         if (searchResults.length > 0) {
+             // Gera o prompt de contexto para o modelo ler
+             groundingSystemMessage = buildGroundedPrompt(searchResults);
+
+             // Prepara metadados JSON para o Frontend desenhar a caixa de fontes
+             // O formato deve imitar exatamente o retorno da API do Gemini
+             groundingMetadata = {
+                 groundingChunks: searchResults.map(r => ({
+                     web: {
+                         uri: r.link,
+                         title: r.title
+                     }
+                 }))
+             };
          }
       }
 
@@ -113,19 +189,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           apiToken = openRouterKey;
           targetModel = "deepseek/deepseek-r1-0528:free";
           
-          // Required OpenRouter Headers
-          headers["HTTP-Referer"] = "https://gemini-gpt-clone.vercel.app";
+          headers["HTTP-Referer"] = "https://iaaleatoria.vercel.app";
           headers["X-Title"] = "Gemini GPT Clone";
+          
+          // DeepSeek R1 often includes <think> tags. OpenRouter sometimes strips them into reasoning_content.
+          // We will handle whatever the API gives us.
 
-      } else if (model === 'openai/gpt-oss-20b' || model.includes('groq')) {
+      } else if (model === 'openai/gpt-oss-120b' || model.includes('groq')) {
           // Groq
           if (!groqKey) throw new Error('API Key do Groq não configurada.');
           
           apiUrl = "https://api.groq.com/openai/v1/chat/completions";
           apiToken = groqKey;
-          targetModel = "openai/gpt-oss-20b";
+          targetModel = "openai/gpt-oss-120b";
           
-          // Parâmetros específicos do Groq conforme solicitado
           requestBody.temperature = 1;
           requestBody.max_completion_tokens = 8192;
           requestBody.top_p = 1;
@@ -148,24 +225,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         };
       });
 
-      // Insert System Instruction if exists
+      // Insert System Instruction if exists (Lower priority)
       if (config?.systemInstruction) {
         messages.unshift({ role: 'system', content: config.systemInstruction });
       }
 
-      // Insert Grounding Context if we fetched it
-      if (groundingContext) {
-          const groundingSystemMessage = `
-INFORMAÇÃO DE PESQUISA EM TEMPO REAL (GOOGLE):
-Abaixo estão informações obtidas via Google Search para ajudar a responder a solicitação do usuário.
-Use estas informações como fonte de verdade para fatos atuais.
-
---- INÍCIO DA PESQUISA ---
-${groundingContext}
---- FIM DA PESQUISA ---
-`;
-          // Inject as a system message right before the latest messages or at the top
-          messages.splice(messages.length - 1, 0, { role: 'system', content: groundingSystemMessage });
+      // INJECT GROUNDING PROMPT (HIGHEST PRIORITY - First Item)
+      // Garante que o modelo leia os dados antes de qualquer outra instrução
+      if (groundingSystemMessage) {
+          messages.unshift({ role: 'system', content: groundingSystemMessage });
       }
       
       // Finalize Body
@@ -191,11 +259,14 @@ ${groundingContext}
       const decoder = new TextDecoder();
       let buffer = '';
 
-      // If we have grounding metadata from the hybrid step, send it in the first chunk
+      // CRUCIAL: Envia os metadados das fontes IMEDIATAMENTE antes do texto.
       if (groundingMetadata) {
           const metaChunk = JSON.stringify({
-              text: '', // No text yet
-              candidates: [{ groundingMetadata: groundingMetadata }] // Just metadata for the frontend to render sources
+              text: '', 
+              candidates: [{ 
+                  groundingMetadata: groundingMetadata,
+                  finishReason: null
+              }] 
           });
           res.write(metaChunk + delimiter);
       }
@@ -220,22 +291,14 @@ ${groundingContext}
                     const delta = data.choices?.[0]?.delta;
                     
                     if (delta) {
-                        let textChunk = '';
+                        const reasoning = delta.reasoning_content || delta.reasoning || '';
+                        const content = delta.content || '';
 
-                        // Handle Reasoning (common in DeepSeek/O1-style models)
-                        const reasoning = delta.reasoning_content || delta.reasoning;
-                        
-                        if (reasoning) {
-                            textChunk += `> ${reasoning}`; 
-                        }
-
-                        if (delta.content) {
-                            textChunk += delta.content;
-                        }
-
-                        if (textChunk) {
+                        // We send reasoning and content separately to the frontend
+                        if (reasoning || content) {
                             const chunkData = JSON.stringify({
-                                text: textChunk,
+                                text: content, // Only the final answer part
+                                reasoning: reasoning, // The Chain of Thought part
                                 candidates: [{ finishReason: data.choices?.[0]?.finish_reason }]
                             });
                             res.write(chunkData + delimiter);

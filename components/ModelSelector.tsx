@@ -18,15 +18,15 @@ const models: { id: ModelId; name: string; description: string; provider: string
   },
   { 
     id: 'deepseek/deepseek-r1-0528:free', 
-    name: 'DeepSeek R1 (Free)', 
-    description: 'Raciocínio avançado via OpenRouter.',
-    provider: 'OpenRouter'
+    name: 'DeepSeek R1 0528', 
+    description: 'Raciocínio avançado via a potência do DeepSeek',
+    provider: 'Deepseek'
   },
   { 
-    id: 'openai/gpt-oss-20b', 
-    name: 'GPT-OSS 20B', 
-    description: 'Modelo O1-like via Groq.',
-    provider: 'Groq'
+    id: 'openai/gpt-oss-120b', 
+    name: 'GPT-OSS 120B', 
+    description: 'Modelo da OpenAI inspirado no GPT-4',
+    provider: 'OpenAI'
   }
 ];
 

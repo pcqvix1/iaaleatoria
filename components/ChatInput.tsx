@@ -52,8 +52,8 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
   }, [input]);
   
   const validateFileForModel = (file: File): boolean => {
-      if (modelId === 'openai/gpt-oss-20b') {
-          addToast('GPT-OSS 20B suporta apenas texto. Anexos não são permitidos.', 'error');
+      if (modelId === 'openai/gpt-oss-120b') {
+          addToast('GPT-OSS 120B suporta apenas texto. Anexos não são permitidos.', 'error');
           return false;
       }
       
@@ -110,7 +110,7 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
   };
   
   const handleAttachmentClick = () => {
-      if (modelId === 'openai/gpt-oss-20b') {
+      if (modelId === 'openai/gpt-oss-120b') {
           addToast('GPT-OSS 20B suporta apenas texto. Troque para o Gemini para anexar arquivos.', 'error');
           return;
       }

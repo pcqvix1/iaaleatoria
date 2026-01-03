@@ -177,7 +177,7 @@ const AppContent: React.FC = () => {
   const processStream = async (conversationId: string, history: Message[], prompt: string, attachment?: any, useSearch?: boolean) => {
       const convo = conversations.find(c => c.id === conversationId);
       const aiMessageId = uuidv4();
-      const aiMessage: Message = { id: aiMessageId, role: 'model', content: '', groundingChunks: [] };
+      const aiMessage: Message = { id: aiMessageId, role: 'model', content: '', reasoning: '', groundingChunks: [] };
       const systemInstruction = convo?.systemInstruction;
       const modelId = convo?.modelId || 'gemini-2.5-flash';
 
@@ -190,37 +190,53 @@ const AppContent: React.FC = () => {
       try {
         const responseStream = await generateStream(history, prompt, modelId, attachment, systemInstruction, useSearch);
         let fullResponseText = '';
+        let fullReasoningText = '';
         const allChunks: any[] = [];
         let updateScheduled = false;
-        let buffer = '';
+        let bufferText = '';
+        let bufferReasoning = '';
 
         for await (const chunk of responseStream) {
             if (stopGenerationRef.current || currentConversationId !== conversationId) {
                 break;
             }
             allChunks.push(chunk);
-            const chunkText = chunk.text;
+            
+            if (chunk.reasoning) {
+                bufferReasoning += chunk.reasoning;
+            }
 
-            if (typeof chunkText === 'string') {
-                buffer += chunkText;
-                if (!updateScheduled) {
-                    updateScheduled = true;
-                    animationFrameRef.current = requestAnimationFrame(() => {
-                        fullResponseText += buffer;
-                        buffer = '';
-                        updateAndSaveConversations(prev => prev.map(c => 
-                            c.id === conversationId 
-                            ? { ...c, messages: c.messages.map(m => m.id === aiMessageId ? { ...m, content: fullResponseText } : m) }
-                            : c
-                        ));
-                        updateScheduled = false;
-                    });
-                }
+            if (typeof chunk.text === 'string') {
+                bufferText += chunk.text;
+            }
+
+            if (!updateScheduled) {
+                updateScheduled = true;
+                animationFrameRef.current = requestAnimationFrame(() => {
+                    fullResponseText += bufferText;
+                    fullReasoningText += bufferReasoning;
+                    bufferText = '';
+                    bufferReasoning = '';
+                    
+                    updateAndSaveConversations(prev => prev.map(c => 
+                        c.id === conversationId 
+                        ? { 
+                            ...c, 
+                            messages: c.messages.map(m => m.id === aiMessageId 
+                                ? { ...m, content: fullResponseText, reasoning: fullReasoningText } 
+                                : m
+                            ) 
+                          }
+                        : c
+                    ));
+                    updateScheduled = false;
+                });
             }
         }
         
         if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-        fullResponseText += buffer;
+        fullResponseText += bufferText;
+        fullReasoningText += bufferReasoning;
 
         const lastChunk = allChunks[allChunks.length - 1];
         const finishReason = lastChunk?.candidates?.[0]?.finishReason;
@@ -245,7 +261,7 @@ const AppContent: React.FC = () => {
             if (c.id === conversationId) {
                 return { 
                     ...c, 
-                    messages: c.messages.map(m => m.id === aiMessageId ? { ...m, content: finalContent, groundingChunks: uniqueGroundingChunks.length > 0 ? uniqueGroundingChunks : m.groundingChunks } : m), 
+                    messages: c.messages.map(m => m.id === aiMessageId ? { ...m, content: finalContent, reasoning: fullReasoningText, groundingChunks: uniqueGroundingChunks.length > 0 ? uniqueGroundingChunks : m.groundingChunks } : m), 
                     isTyping: false 
                 };
             }

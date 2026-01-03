@@ -21,7 +21,7 @@ export async function* generateStream(
   attachment?: { data: string; mimeType: string; name: string; },
   systemInstruction?: string,
   useSearch?: boolean
-): AsyncGenerator<{ text: string; candidates?: any[] }> {
+): AsyncGenerator<{ text: string; reasoning?: string; candidates?: any[] }> {
   
   // 0. Context Window Management (Sliding Window)
   // We keep the last 20 messages to prevent token overflow in long conversations.
@@ -149,6 +149,7 @@ export async function* generateStream(
           // Map backend response to what frontend expects
           yield {
             text: chunkJson.text || '',
+            reasoning: chunkJson.reasoning || '',
             candidates: chunkJson.candidates,
           };
         } catch (e) {
@@ -164,6 +165,7 @@ export async function* generateStream(
           if (chunkJson.error) throw new Error(chunkJson.error);
            yield {
             text: chunkJson.text || '',
+            reasoning: chunkJson.reasoning || '',
             candidates: chunkJson.candidates,
           };
         } catch (e) {
@@ -219,10 +221,10 @@ Título Sugerido:`;
         fullResponse += chunk.text;
     }
 
-    // Post-processing: remove reasoning (lines starting with >) if model is DeepSeek/Groq
+    // Post-processing: remove reasoning if accidentally present (though separate field should handle it)
     let title = fullResponse
         .split('\n')
-        .filter(line => !line.trim().startsWith('>'))
+        .filter(line => !line.trim().startsWith('>')) // legacy check
         .join(' ')
         .trim();
 

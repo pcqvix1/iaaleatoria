@@ -107,8 +107,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
       const file = e.dataTransfer.files[0];
       
       // Validação de Modelo para Drag & Drop
-      if (currentModelId === 'openai/gpt-oss-20b') {
-          addToast('GPT-OSS 20B suporta apenas texto. Troque para o Gemini para anexar arquivos.', 'error');
+      if (currentModelId === 'openai/gpt-oss-120b') {
+          addToast('GPT-OSS 120B suporta apenas texto. Troque para o Gemini para anexar arquivos.', 'error');
           return;
       }
       

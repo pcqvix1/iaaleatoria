@@ -131,7 +131,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ message, isLa
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   const isUserModel = message.role === 'user';
-  const showTyping = message.role === 'model' && message.content === '' && !message.attachment;
+  const showTyping = message.role === 'model' && message.content === '' && !message.attachment && !message.reasoning;
   const hasSources = message.groundingChunks && message.groundingChunks.length > 0;
 
   const bubbleContainerClasses = isUserModel ? 'justify-end' : 'justify-start';
@@ -173,8 +173,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ message, isLa
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
     >
-      {/* Removed AI Avatar */}
-      
       <div className={`relative max-w-[95%] md:max-w-3xl px-4 py-3 shadow-none ${bubbleClasses} ${isUserModel ? 'shadow-sm border border-gray-200 dark:border-gray-700/50' : ''}`}>
         
         {/* Edit Button for User */}
@@ -227,6 +225,38 @@ export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ message, isLa
                 ) : (
                   <>
                     {message.attachment && <AttachmentDisplay attachment={message.attachment} />}
+                    
+                    {/* REASONING BLOCK (Collapsed by default) */}
+                    {message.reasoning && (
+                        <details className="mb-4 group">
+                             <summary className="list-none flex items-center gap-2 cursor-pointer select-none text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+                                <span className="p-1 rounded bg-gray-100 dark:bg-gray-800 group-open:bg-gray-200 dark:group-open:bg-gray-700 transition-colors">
+                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                       <circle cx="12" cy="12" r="10"></circle>
+                                       <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                                       <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                   </svg>
+                                </span>
+                                <span>Processo de Raciocínio</span>
+                                <svg className="w-3 h-3 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                             </summary>
+                             <div className="mt-2 pl-4 border-l-2 border-gray-200 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-300 italic">
+                                 <ReactMarkdown 
+                                    remarkPlugins={[RemarkGfm]}
+                                    components={{
+                                        code: ({node, inline, className, children, ...props}: any) => (
+                                            <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-xs font-mono" {...props}>
+                                                {children}
+                                            </code>
+                                        )
+                                    }}
+                                 >
+                                    {message.reasoning}
+                                 </ReactMarkdown>
+                             </div>
+                        </details>
+                    )}
+
                     {message.content && (
                       <div className="prose prose-sm dark:prose-invert max-w-none 
                         prose-p:leading-relaxed 

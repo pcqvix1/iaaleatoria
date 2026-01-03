@@ -18,9 +18,10 @@ export interface Message {
     name: string;
   };
   groundingChunks?: GroundingChunk[];
+  reasoning?: string; // Stores the Chain of Thought/Reasoning content
 }
 
-export type ModelId = 'gemini-2.5-flash' | 'deepseek/deepseek-r1-0528:free' | 'openai/gpt-oss-20b';
+export type ModelId = 'gemini-2.5-flash' | 'deepseek/deepseek-r1-0528:free' | 'openai/gpt-oss-120b';
 
 export interface Conversation {
   id: string;

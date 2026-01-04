@@ -19,8 +19,7 @@ export async function* generateStream(
   newPrompt: string,
   modelId: ModelId,
   attachment?: { data: string; mimeType: string; name: string; },
-  systemInstruction?: string,
-  useSearch?: boolean
+  systemInstruction?: string
 ): AsyncGenerator<{ text: string; reasoning?: string; candidates?: any[] }> {
   
   // 0. Context Window Management (Sliding Window)
@@ -99,7 +98,8 @@ export async function* generateStream(
       maxOutputTokens: 8192,
   };
 
-  if (useSearch) {
+  // Automatic Google Search Grounding for Gemini Models
+  if (modelId.includes('gemini')) {
       config.tools = [{ googleSearch: {} }];
   }
 

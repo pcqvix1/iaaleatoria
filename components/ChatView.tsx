@@ -10,7 +10,7 @@ import { useToast } from './Toast';
 
 interface ChatViewProps {
   conversation: Conversation | undefined;
-  onSendMessage: (input: string, attachment?: { data: string; mimeType: string; name: string; }, useSearch?: boolean) => void;
+  onSendMessage: (input: string, attachment?: { data: string; mimeType: string; name: string; }) => void;
   isTyping: boolean;
   onStopGenerating: () => void;
   onFileDrop: (file: File) => void;

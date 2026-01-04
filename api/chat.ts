@@ -155,10 +155,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .join(' ')
         .trim() || '';
 
-      // 2. Decisão inteligente de busca (Toggle Manual OU Heurística de Palavras-Chave)
-      // Regex procura por perguntas de tempo, pessoas ou dados recentes
+      // 2. Decisão inteligente de busca
+      // DESATIVADO PARA DeepSeek e GPT-OSS para evitar alucinações de ferramentas ou uso não intencional
+      const needsSearch = false; 
+      /*
+      // Lógica antiga (comentada):
       const needsSearch = config?.tools?.some((t: any) => t.googleSearch) || 
                           (searchQuery && /quem|quando|quanto|onde|preço|valor|cotação|lançamento|evento|202[4-9]|hoje|ontem|agora|notícia/i.test(searchQuery));
+      */
 
       if (needsSearch && searchQuery) {
          const searchResults = await performGoogleSearch(searchQuery);
@@ -168,7 +172,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
              groundingSystemMessage = buildGroundedPrompt(searchResults);
 
              // Prepara metadados JSON para o Frontend desenhar a caixa de fontes
-             // O formato deve imitar exatamente o retorno da API do Gemini
              groundingMetadata = {
                  groundingChunks: searchResults.map(r => ({
                      web: {
@@ -191,9 +194,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           
           headers["HTTP-Referer"] = "https://iaaleatoria.vercel.app";
           headers["X-Title"] = "Gemini GPT Clone";
-          
-          // DeepSeek R1 often includes <think> tags. OpenRouter sometimes strips them into reasoning_content.
-          // We will handle whatever the API gives us.
 
       } else if (model === 'openai/gpt-oss-120b' || model.includes('groq')) {
           // Groq

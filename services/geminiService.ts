@@ -197,7 +197,7 @@ export async function generateConversationTitle(
     .join('\n\n');
     
   const prompt = `Analise a seguinte conversa e crie um título curto e descritivo em português, com no máximo 5 palavras. O título deve capturar a essência do assunto.
-NÃO use raciocínio. NÃO use tags <reasoning>. Responda APENAS com o texto do título.
+NÃO use raciocínio. NÃO use tags <reasoning>. Responda APENAS com o texto do título. Não use Markdown no título.
 
 Conversa:
 ---

@@ -8,7 +8,6 @@ import { AccountPage } from './components/AccountPage';
 import { generateStream, generateConversationTitle } from './services/geminiService';
 import { authService } from './services/authService';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { MenuIcon } from './components/Icons';
 import { type Conversation, type Message, type Theme, type GroundingChunk, type User, type ModelId } from './types';
 import { type ChatInputHandles } from './components/ChatInput';
 import { ToastProvider, useToast } from './components/Toast';
@@ -551,15 +550,6 @@ const AppContent: React.FC = () => {
             onLogout={handleLogout}
             onGoToAccount={() => { setView('account'); setIsSidebarOpen(false); }}
           />
-          {!isSidebarOpen && view === 'chat' && (
-            <button 
-              onClick={() => setIsSidebarOpen(true)}
-              className="absolute top-2 left-2 z-30 p-2 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700/50 shadow-sm bg-white/50 dark:bg-black/20 backdrop-blur-sm md:hidden"
-              aria-label="Abrir barra lateral"
-            >
-              <MenuIcon />
-            </button>
-          )}
           <main className={`transition-all duration-300 ease-in-out absolute top-0 bottom-0 right-0 flex flex-col left-0 ${isSidebarOpen ? 'md:left-64' : ''}`}>
             {view === 'chat' ? (
               <ChatView 
@@ -573,6 +563,7 @@ const AppContent: React.FC = () => {
                 onRegenerate={handleRegenerate}
                 onUpdateSystemInstruction={handleUpdateSystemInstruction}
                 onUpdateModel={handleUpdateModel}
+                onOpenSidebar={() => setIsSidebarOpen(true)}
               />
             ) : (
               <AccountPage

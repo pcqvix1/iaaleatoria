@@ -220,22 +220,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         };
       });
 
-      // Insert System Instruction if exists (Lower priority)
-      if (config?.systemInstruction) {
-        messages.unshift({ role: 'system', content: config.systemInstruction });
+      // --- SYSTEM INSTRUCTION CONSOLIDATION ---
+      // We combine all system-level instructions into a single message to ensure the model follows all of them.
+      // Many providers/models ignore multiple system messages or only look at the first one.
+      const systemInstructionParts: string[] = [];
+
+      // 1. Forced Rules (Highest technical priority for formatting)
+      systemInstructionParts.push(
+          'IMPORTANTE: Todo o seu raciocínio (Chain of Thought) DEVE ser feito em Português do Brasil. Ao raciocinar, NÃO mencione que você irá usar markdown ou formatação (ex: não diga "vou usar markdown", "vou formatar a resposta"). Simplesmente use o markdown diretamente na resposta final. Não mencione no raciocínio que você não vai mencionar sobre a formatação.'
+      );
+
+      // 2. Grounding Data (If available)
+      if (groundingSystemMessage) {
+          systemInstructionParts.push(groundingSystemMessage);
       }
 
-      // --- CRITICAL: FORCE PT-BR REASONING & REMOVE META-TALK ---
-      // This is a specialized system instruction for DeepSeek/GPT-OSS models
-      messages.unshift({
-          role: 'system',
-          content: 'IMPORTANTE: Todo o seu raciocínio (Chain of Thought) DEVE ser feito em Português do Brasil. Ao raciocinar, NÃO mencione que você irá usar markdown ou formatação (ex: não diga "vou usar markdown", "vou formatar a resposta"). Simplesmente use o markdown diretamente na resposta final.'
-      });
+      // 3. User Custom Instruction (Personality/Behavior)
+      if (config?.systemInstruction) {
+        systemInstructionParts.push(`\nINSTRUÇÃO PERSONALIZADA DO USUÁRIO:\n${config.systemInstruction}`);
+      }
 
-      // INJECT GROUNDING PROMPT (HIGHEST PRIORITY - First Item)
-      // Garante que o modelo leia os dados antes de qualquer outra instrução
-      if (groundingSystemMessage) {
-          messages.unshift({ role: 'system', content: groundingSystemMessage });
+      // Prepend the consolidated system message
+      if (systemInstructionParts.length > 0) {
+          messages.unshift({ 
+              role: 'system', 
+              content: systemInstructionParts.join('\n\n---\n\n') 
+          });
       }
       
       // Finalize Body

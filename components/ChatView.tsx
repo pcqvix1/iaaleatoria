@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { type Conversation, type ModelId } from '../types';
 import { MessageBubble } from './Message';
 import { ChatInput, type ChatInputHandles } from './ChatInput';
-import { UploadCloudIcon, TuneIcon } from './Icons';
+import { UploadCloudIcon, TuneIcon, MenuIcon } from './Icons';
 import { SystemInstructionModal } from './SystemInstructionModal';
 import { ModelSelector } from './ModelSelector';
 import { useToast } from './Toast';
@@ -19,6 +19,7 @@ interface ChatViewProps {
   onRegenerate?: () => void;
   onUpdateSystemInstruction?: (instruction: string) => void;
   onUpdateModel?: (modelId: ModelId) => void;
+  onOpenSidebar: () => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({ 
@@ -31,7 +32,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     onEditMessage,
     onRegenerate,
     onUpdateSystemInstruction,
-    onUpdateModel
+    onUpdateModel,
+    onOpenSidebar
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -141,9 +143,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
       
       {/* Header with Model Selector and Settings */}
       <header className="relative w-full p-2 flex justify-between items-center text-sm text-gray-500 dark:text-gray-400 border-b border-gray-300 dark:border-gray-700/50 flex-shrink-0 bg-white/50 dark:bg-black/20 backdrop-blur-sm z-10">
-        <div className="w-8 md:hidden"></div> {/* Mobile Spacer for Menu Button */}
         
-        <div className="flex-1 flex justify-center md:justify-start">
+        {/* Mobile Menu Button */}
+        <button 
+          onClick={onOpenSidebar}
+          className="p-2 mr-2 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700/50 md:hidden flex-shrink-0"
+          aria-label="Abrir barra lateral"
+        >
+          <MenuIcon />
+        </button>
+        
+        <div className="flex-1 flex justify-start md:justify-start">
              <ModelSelector 
                 currentModel={currentModelId} 
                 onSelectModel={(model) => onUpdateModel?.(model)}

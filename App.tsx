@@ -564,6 +564,7 @@ const AppContent: React.FC = () => {
                 onUpdateSystemInstruction={handleUpdateSystemInstruction}
                 onUpdateModel={handleUpdateModel}
                 onOpenSidebar={() => setIsSidebarOpen(true)}
+                isSidebarOpen={isSidebarOpen}
               />
             ) : (
               <AccountPage

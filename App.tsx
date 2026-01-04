@@ -242,10 +242,16 @@ const AppContent: React.FC = () => {
         const finishReason = lastChunk?.candidates?.[0]?.finishReason;
         let interruptionMessage = '';
 
+        // Check for Stop, considering backend now normalizes to 'STOP'
         if (finishReason && finishReason !== 'STOP') {
             switch (finishReason) {
                 case 'SAFETY': interruptionMessage = '\n\n---\n**Interrompido por segurança.**'; break;
                 case 'MAX_TOKENS': interruptionMessage = '\n\n---\n**Limite de tamanho atingido.**'; break;
+                // Add explicit ignore for stop/eos if normalization fails for some reason
+                case 'stop': 
+                case 'eos':
+                    interruptionMessage = ''; 
+                    break;
                 default: if (finishReason !== 'STOP' && finishReason !== undefined) interruptionMessage = `\n\n---\n**Interrompido.**`; break;
             }
         }

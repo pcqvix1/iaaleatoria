@@ -196,7 +196,8 @@ export async function generateConversationTitle(
     })
     .join('\n\n');
     
-  const prompt = `Analise a seguinte conversa e crie um título curto e descritivo em português, com no máximo 5 palavras. O título deve capturar a essência do assunto. Não adicione aspas nem pontuação final.
+  const prompt = `Analise a seguinte conversa e crie um título curto e descritivo em português, com no máximo 5 palavras. O título deve capturar a essência do assunto.
+NÃO use raciocínio. NÃO use tags <reasoning>. Responda APENAS com o texto do título.
 
 Conversa:
 ---
@@ -230,6 +231,9 @@ Título Sugerido:`;
 
     title = title.replace(/^(título|title|sugestão):?\s*/i, '');
     title = title.replace(/^"|"$|^\s*['`]|['`]\s*$/g, '').replace(/[.,!?;:]$/, '').trim();
+    
+    // Remove any leftover reasoning tags if the model disobeyed
+    title = title.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
     return title || "Nova Conversa";
   } catch (error) {

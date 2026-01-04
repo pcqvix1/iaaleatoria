@@ -158,12 +158,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // 2. Decisão inteligente de busca
       // DESATIVADO PARA DeepSeek e GPT-OSS para evitar alucinações de ferramentas ou uso não intencional
       const needsSearch = false; 
-      /*
-      // Lógica antiga (comentada):
-      const needsSearch = config?.tools?.some((t: any) => t.googleSearch) || 
-                          (searchQuery && /quem|quando|quanto|onde|preço|valor|cotação|lançamento|evento|202[4-9]|hoje|ontem|agora|notícia/i.test(searchQuery));
-      */
-
+      
       if (needsSearch && searchQuery) {
          const searchResults = await performGoogleSearch(searchQuery);
          
@@ -230,6 +225,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         messages.unshift({ role: 'system', content: config.systemInstruction });
       }
 
+      // --- CRITICAL: FORCE PT-BR REASONING & REMOVE META-TALK ---
+      // This is a specialized system instruction for DeepSeek/GPT-OSS models
+      messages.unshift({
+          role: 'system',
+          content: 'IMPORTANTE: Todo o seu raciocínio (Chain of Thought) DEVE ser feito em Português do Brasil. Ao raciocinar, NÃO mencione que você irá usar markdown ou formatação (ex: não diga "vou usar markdown", "vou formatar a resposta"). Simplesmente use o markdown diretamente na resposta final.'
+      });
+
       // INJECT GROUNDING PROMPT (HIGHEST PRIORITY - First Item)
       // Garante que o modelo leia os dados antes de qualquer outra instrução
       if (groundingSystemMessage) {
@@ -289,17 +291,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const jsonStr = trimmedLine.slice(6);
                     const data = JSON.parse(jsonStr);
                     const delta = data.choices?.[0]?.delta;
+                    const rawFinishReason = data.choices?.[0]?.finish_reason;
                     
+                    // Normalize finishReason to match Gemini SDK (uppercase 'STOP')
+                    // OpenRouter/Groq return 'stop', 'length', etc.
+                    let normalizedFinishReason = null;
+                    if (rawFinishReason) {
+                        normalizedFinishReason = rawFinishReason.toUpperCase();
+                        if (normalizedFinishReason === 'STOP' || normalizedFinishReason === 'EOS') {
+                            normalizedFinishReason = 'STOP';
+                        }
+                    }
+
                     if (delta) {
                         const reasoning = delta.reasoning_content || delta.reasoning || '';
                         const content = delta.content || '';
 
                         // We send reasoning and content separately to the frontend
-                        if (reasoning || content) {
+                        if (reasoning || content || normalizedFinishReason) {
                             const chunkData = JSON.stringify({
                                 text: content, // Only the final answer part
                                 reasoning: reasoning, // The Chain of Thought part
-                                candidates: [{ finishReason: data.choices?.[0]?.finish_reason }]
+                                candidates: [{ finishReason: normalizedFinishReason }]
                             });
                             res.write(chunkData + delimiter);
                         }

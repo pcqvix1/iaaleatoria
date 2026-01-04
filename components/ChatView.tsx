@@ -144,10 +144,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
       {/* Header with Model Selector and Settings */}
       <header className="relative w-full p-2 flex justify-between items-center text-sm text-gray-500 dark:text-gray-400 border-b border-gray-300 dark:border-gray-700/50 flex-shrink-0 bg-white/50 dark:bg-black/20 backdrop-blur-sm z-10">
         
-        {/* Mobile Menu Button */}
+        {/* Menu Button - Visible on all screen sizes to allow reopening sidebar */}
         <button 
           onClick={onOpenSidebar}
-          className="p-2 mr-2 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700/50 md:hidden flex-shrink-0"
+          className="p-2 mr-2 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700/50 flex-shrink-0"
           aria-label="Abrir barra lateral"
         >
           <MenuIcon />

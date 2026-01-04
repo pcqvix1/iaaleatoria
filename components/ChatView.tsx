@@ -20,6 +20,7 @@ interface ChatViewProps {
   onUpdateSystemInstruction?: (instruction: string) => void;
   onUpdateModel?: (modelId: ModelId) => void;
   onOpenSidebar: () => void;
+  isSidebarOpen: boolean;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({ 
@@ -33,7 +34,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     onRegenerate,
     onUpdateSystemInstruction,
     onUpdateModel,
-    onOpenSidebar
+    onOpenSidebar,
+    isSidebarOpen
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -144,14 +146,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
       {/* Header with Model Selector and Settings */}
       <header className="relative w-full p-2 flex justify-between items-center text-sm text-gray-500 dark:text-gray-400 border-b border-gray-300 dark:border-gray-700/50 flex-shrink-0 bg-white/50 dark:bg-black/20 backdrop-blur-sm z-10">
         
-        {/* Menu Button - Visible on all screen sizes to allow reopening sidebar */}
-        <button 
-          onClick={onOpenSidebar}
-          className="p-2 mr-2 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700/50 flex-shrink-0"
-          aria-label="Abrir barra lateral"
-        >
-          <MenuIcon />
-        </button>
+        {/* Menu Button - Only visible if sidebar is closed */}
+        {!isSidebarOpen && (
+          <button 
+            onClick={onOpenSidebar}
+            className="p-2 mr-2 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700/50 flex-shrink-0"
+            aria-label="Abrir barra lateral"
+          >
+            <MenuIcon />
+          </button>
+        )}
         
         <div className="flex-1 flex justify-start md:justify-start">
              <ModelSelector 

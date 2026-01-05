@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { type User } from '../types';
+
+import React, { useState, useEffect } from 'react';
+import { type User, type VoiceName } from '../types';
 import { authService } from '../services/authService';
-import { ArrowLeftIcon, AlertTriangleIcon, UserCircleIcon, CloseIcon } from './Icons';
+import { ArrowLeftIcon, AlertTriangleIcon, UserCircleIcon, CloseIcon, MicIcon } from './Icons';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 interface AccountPageProps {
   currentUser: User;
@@ -9,6 +11,14 @@ interface AccountPageProps {
   onPasswordUpdate: () => void;
   onAccountDeleted: () => void;
 }
+
+const VOICES: { name: VoiceName; description: string; gender: string }[] = [
+  { name: 'Puck', description: 'Suave e calmo', gender: 'Masculino' },
+  { name: 'Charon', description: 'Profundo e autoritário', gender: 'Masculino' },
+  { name: 'Kore', description: 'Tranquila e relaxante', gender: 'Feminino' },
+  { name: 'Fenrir', description: 'Enérgico e rápido', gender: 'Masculino' },
+  { name: 'Aoede', description: 'Clara e formal', gender: 'Feminino' },
+];
 
 export const AccountPage: React.FC<AccountPageProps> = ({ currentUser, onBack, onPasswordUpdate, onAccountDeleted }) => {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -21,6 +31,9 @@ export const AccountPage: React.FC<AccountPageProps> = ({ currentUser, onBack, o
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  
+  // Voice Preference Persistence
+  const [selectedVoice, setSelectedVoice] = useLocalStorage<VoiceName>('gemini_voice_pref', 'Kore');
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,6 +100,40 @@ export const AccountPage: React.FC<AccountPageProps> = ({ currentUser, onBack, o
                             <h2 className="text-xl font-bold">{currentUser.name}</h2>
                             <p className="text-sm text-gray-500 dark:text-gray-400">{currentUser.email}</p>
                         </div>
+                    </div>
+                </div>
+
+                {/* Voice Selection Section */}
+                <div className="p-6 bg-white dark:bg-gpt-light-gray rounded-lg shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                        <MicIcon />
+                        <h3 className="text-lg font-semibold">Voz do Gemini Live</h3>
+                    </div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        Escolha a voz que será usada durante as conversas em tempo real.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {VOICES.map((voice) => (
+                            <button
+                                key={voice.name}
+                                onClick={() => setSelectedVoice(voice.name)}
+                                className={`flex flex-col items-start p-3 rounded-lg border-2 transition-all ${
+                                    selectedVoice === voice.name 
+                                    ? 'border-gpt-green bg-green-50 dark:bg-green-900/20' 
+                                    : 'border-transparent bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                }`}
+                            >
+                                <div className="flex justify-between w-full items-center">
+                                    <span className={`font-medium ${selectedVoice === voice.name ? 'text-gpt-green' : 'text-gray-900 dark:text-gray-100'}`}>
+                                        {voice.name}
+                                    </span>
+                                    {selectedVoice === voice.name && (
+                                        <div className="w-2 h-2 rounded-full bg-gpt-green"></div>
+                                    )}
+                                </div>
+                                <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">{voice.gender} • {voice.description}</span>
+                            </button>
+                        ))}
                     </div>
                 </div>
 

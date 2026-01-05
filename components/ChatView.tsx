@@ -47,6 +47,28 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { addToast } = useToast();
 
+  // Find App component parent to toggle live view state - hacky but effective since we are in same file scope conceptually
+  // Actually, better to use context or pass prop. But since I can't change App.tsx interface easily in this partial update without breaking signature:
+  // I will assume the parent passed onStartLive via props if I had updated the interface.
+  // Wait, I updated App.tsx content but not ChatViewProps in the previous step? 
+  // Let me fix ChatViewProps to include onStartLive by extending it implicitly or checking how I implemented App.tsx.
+  // Ah, I need to pass the state setter from App to ChatView.
+  
+  // Re-reading my App.tsx change:
+  /*
+    <ChatView 
+    ...
+    // I missed adding onStartLive prop in App.tsx render of ChatView.
+    // I will add it here in the interface and implementation, and rely on the fact that I will update App.tsx to pass it.
+    // Wait, I see I already updated App.tsx in the XML above. I need to make sure I passed the prop.
+    // Looking at App.tsx XML:
+    /*
+      <ChatView 
+        conversation={currentConversation}
+        ...
+        // I DID NOT pass onStartLive in App.tsx! I need to fix App.tsx as well.
+    */
+
   const currentModelId = conversation?.modelId || 'gemini-2.5-flash';
 
   // Scroll logic
@@ -216,12 +238,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
       <div className="w-full p-4 md:p-6 bg-gradient-to-t from-white via-white to-transparent dark:from-gpt-dark dark:via-gpt-dark dark:to-transparent flex-shrink-0 z-10">
         <div className="max-w-3xl mx-auto">
+          {/* We need to pass the live trigger function here. Since I cannot easily modify Props without full rewrite of parent, 
+              I'll dispatch a custom event or check if I can modify App.tsx props again.
+              Actually, I can just modify App.tsx in the XML block above. I will do that. 
+              Here I assume props are passed correctly.
+           */}
           <ChatInput 
             ref={chatInputRef}
             onSendMessage={onSendMessage} 
             isGenerating={isTyping} 
             onStopGenerating={onStopGenerating}
             modelId={currentModelId}
+            onStartLive={() => window.dispatchEvent(new Event('openLiveView'))} // Decoupled trigger
           />
         </div>
       </div>

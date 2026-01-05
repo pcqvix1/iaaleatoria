@@ -5,6 +5,7 @@ import { Sidebar } from './components/Sidebar';
 import { ChatView } from './components/ChatView';
 import { LoginPage } from './components/LoginPage';
 import { AccountPage } from './components/AccountPage';
+import { LiveView } from './components/LiveView';
 import { generateStream, generateConversationTitle } from './services/geminiService';
 import { authService } from './services/authService';
 import { useLocalStorage } from './hooks/useLocalStorage';
@@ -23,6 +24,7 @@ const AppContent: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [view, setView] = useState<View>('chat');
+  const [isLiveOpen, setIsLiveOpen] = useState(false);
 
   const stopGenerationRef = useRef(false);
   const saveTimeoutRef = useRef<number | undefined>(undefined);
@@ -30,6 +32,12 @@ const AppContent: React.FC = () => {
   const animationFrameRef = useRef<number | undefined>(undefined);
   
   const { addToast } = useToast();
+
+  useEffect(() => {
+    const handleOpenLive = () => setIsLiveOpen(true);
+    window.addEventListener('openLiveView', handleOpenLive);
+    return () => window.removeEventListener('openLiveView', handleOpenLive);
+  }, []);
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -576,6 +584,8 @@ const AppContent: React.FC = () => {
               />
             )}
           </main>
+          
+          {isLiveOpen && <LiveView onClose={() => setIsLiveOpen(false)} />}
         </>
       ) : (
         <LoginPage 

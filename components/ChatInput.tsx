@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
-import { PaperAirplaneIcon, StopIcon, PaperclipIcon, CloseIcon, FileIcon } from './Icons';
+import { PaperAirplaneIcon, StopIcon, PaperclipIcon, CloseIcon, FileIcon, WaveformIcon } from './Icons';
 import { type ModelId } from '../types';
 import { useToast } from './Toast';
 
@@ -14,13 +14,14 @@ interface ChatInputProps {
   isGenerating: boolean;
   onStopGenerating: () => void;
   modelId?: ModelId;
+  onStartLive?: () => void; // New prop
 }
 
 export type ChatInputHandles = {
   setFile: (file: File) => void;
 };
 
-export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendMessage, isGenerating, onStopGenerating, modelId = 'gemini-2.5-flash' }, ref) => {
+export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendMessage, isGenerating, onStopGenerating, modelId = 'gemini-2.5-flash', onStartLive }, ref) => {
   const [input, setInput] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
@@ -316,14 +317,27 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(({ onSendM
             <StopIcon />
           </button>
         ) : (
-          <button
-            onClick={handleSend}
-            disabled={(!input.trim() && !attachedFile) || isGenerating}
-            aria-label="Enviar mensagem"
-            className="p-3 text-gray-500 hover:text-gpt-green dark:text-gray-400 dark:hover:text-gpt-green disabled:opacity-50 disabled:hover:text-gray-500"
-          >
-            <PaperAirplaneIcon />
-          </button>
+          <div className="flex items-center">
+              {/* Live Button - Only show if model supports it (Gemini) */}
+              {onStartLive && modelId.includes('gemini') && (
+                  <button
+                    onClick={onStartLive}
+                    aria-label="Iniciar voz"
+                    className="p-3 text-gray-500 hover:text-gpt-green dark:text-gray-400 dark:hover:text-gpt-green"
+                    title="Conversar com Gemini Live"
+                  >
+                    <WaveformIcon />
+                  </button>
+              )}
+              <button
+                onClick={handleSend}
+                disabled={(!input.trim() && !attachedFile) || isGenerating}
+                aria-label="Enviar mensagem"
+                className="p-3 text-gray-500 hover:text-gpt-green dark:text-gray-400 dark:hover:text-gpt-green disabled:opacity-50 disabled:hover:text-gray-500"
+              >
+                <PaperAirplaneIcon />
+              </button>
+          </div>
         )}
       </div>
     </div>

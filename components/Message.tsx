@@ -271,6 +271,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ message, isLa
                           remarkPlugins={[RemarkGfm]}
                           rehypePlugins={[rehypeRaw]}
                           components={{
+                            pre: ({children}) => <>{children}</>,
                             code: (props) => <CodeBlock {...props} theme={theme} />,
                           }}
                         >

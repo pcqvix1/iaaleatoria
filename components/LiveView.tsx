@@ -79,12 +79,17 @@ export const LiveView: React.FC<LiveViewProps> = memo(({ onClose }) => {
     
     const startLiveSession = async () => {
       try {
-        // Initialize AI Client
-        // Note: In a real production app, ensure your API_KEY is handled securely.
-        // The prompt instructed to use process.env.API_KEY directly.
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        // 1. Obter API Key do servidor (Core Fix: O navegador não vê process.env)
+        const keyResponse = await fetch('/api/get-key');
+        if (!keyResponse.ok) throw new Error('Falha ao conectar com o servidor.');
+        const { apiKey } = await keyResponse.json();
+
+        if (!apiKey) throw new Error('API Key não encontrada no servidor.');
+
+        // 2. Inicializar AI Client
+        const ai = new GoogleGenAI({ apiKey: apiKey });
         
-        // Setup Audio Contexts
+        // 3. Configurar Contexto de Áudio
         const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
         const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
         
@@ -95,11 +100,11 @@ export const LiveView: React.FC<LiveViewProps> = memo(({ onClose }) => {
         const outputNode = outputCtx.createGain();
         outputNode.connect(outputCtx.destination);
 
-        // Get Microphone Stream
+        // 4. Solicitar Microfone (Agora o erro de API Key não vai impedir isso)
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         streamRef.current = stream;
 
-        // Connect to Gemini Live
+        // 5. Conectar ao Gemini Live
         const sessionPromise = ai.live.connect({
           model: 'gemini-2.5-flash-native-audio-preview-09-2025',
           callbacks: {
@@ -164,8 +169,6 @@ export const LiveView: React.FC<LiveViewProps> = memo(({ onClose }) => {
                // Handle Interruption
                if (message.serverContent?.interrupted) {
                    nextStartTimeRef.current = 0;
-                   // In a robust implementation, we would cancel scheduled sources here
-                   // For simplicity, we just reset the cursor
                }
             },
             onclose: () => {
@@ -173,7 +176,7 @@ export const LiveView: React.FC<LiveViewProps> = memo(({ onClose }) => {
             },
             onerror: (e) => {
               console.error("Gemini Live Error:", e);
-              setError("Conexão perdida ou erro na API.");
+              setError("Conexão interrompida.");
             }
           },
           config: {
@@ -187,9 +190,13 @@ export const LiveView: React.FC<LiveViewProps> = memo(({ onClose }) => {
         
         sessionRef.current = sessionPromise;
 
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to start live session:", err);
-        setError("Falha ao iniciar. Verifique as permissões do microfone.");
+        if (err.name === 'NotAllowedError' || err.message.includes('permission')) {
+            setError("Permissão de microfone negada.");
+        } else {
+            setError("Erro ao iniciar: " + (err.message || "Verifique a chave de API"));
+        }
       }
     };
 
@@ -230,7 +237,7 @@ export const LiveView: React.FC<LiveViewProps> = memo(({ onClose }) => {
       {/* Header */}
       <div className="w-full flex justify-between items-center">
         <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
             <span className="font-semibold tracking-wide text-sm">LIVE</span>
         </div>
         <button 
@@ -244,10 +251,10 @@ export const LiveView: React.FC<LiveViewProps> = memo(({ onClose }) => {
       {/* Visualizer */}
       <div className="flex-1 flex flex-col items-center justify-center relative w-full">
          {error ? (
-             <div className="text-center text-red-400 max-w-md">
+             <div className="text-center text-red-400 max-w-md animate-fade-in">
                  <p className="mb-4 text-xl font-medium">Ops!</p>
                  <p>{error}</p>
-                 <button onClick={onClose} className="mt-6 px-6 py-2 bg-white/10 rounded-full">Fechar</button>
+                 <button onClick={onClose} className="mt-6 px-6 py-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors">Fechar</button>
              </div>
          ) : (
             <div className="relative flex items-center justify-center">

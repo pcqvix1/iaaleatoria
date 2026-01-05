@@ -22,6 +22,7 @@ export interface Message {
 }
 
 export type ModelId = 'gemini-2.5-flash' | 'deepseek/deepseek-r1-0528:free' | 'openai/gpt-oss-120b';
+export type VoiceName = 'Puck' | 'Charon' | 'Kore' | 'Fenrir' | 'Aoede';
 
 export interface Conversation {
   id: string;

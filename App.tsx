@@ -565,6 +565,7 @@ const AppContent: React.FC = () => {
                 onUpdateModel={handleUpdateModel}
                 onOpenSidebar={() => setIsSidebarOpen(true)}
                 isSidebarOpen={isSidebarOpen}
+                theme={theme}
               />
             ) : (
               <AccountPage

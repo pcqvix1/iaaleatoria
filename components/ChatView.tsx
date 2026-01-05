@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { type Conversation, type ModelId } from '../types';
+import { type Conversation, type ModelId, type Theme } from '../types';
 import { MessageBubble } from './Message';
 import { ChatInput, type ChatInputHandles } from './ChatInput';
 import { UploadCloudIcon, TuneIcon, MenuIcon } from './Icons';
@@ -21,6 +21,7 @@ interface ChatViewProps {
   onUpdateModel?: (modelId: ModelId) => void;
   onOpenSidebar: () => void;
   isSidebarOpen: boolean;
+  theme: Theme;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({ 
@@ -35,7 +36,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     onUpdateSystemInstruction,
     onUpdateModel,
     onOpenSidebar,
-    isSidebarOpen
+    isSidebarOpen,
+    theme
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -188,6 +190,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 onEdit={onEditMessage}
                 isLast={index === conversation.messages.length - 1}
                 onRegenerate={onRegenerate}
+                theme={theme}
               />
             ))
           ) : (

@@ -4,8 +4,8 @@ import ReactMarkdown from 'react-markdown';
 import RemarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { type Message } from '../types';
+import { vscDarkPlus, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { type Message, type Theme } from '../types';
 import { FileIcon, CopyIcon, CheckIcon, EditIcon, RefreshIcon } from './Icons';
 
 interface MessageBubbleProps {
@@ -13,6 +13,7 @@ interface MessageBubbleProps {
   isLast?: boolean;
   onEdit?: (messageId: string, newContent: string) => void;
   onRegenerate?: () => void;
+  theme?: Theme;
 }
 
 const SourceChevronIcon = ({ open }: { open: boolean }) => (
@@ -72,10 +73,11 @@ const AttachmentDisplay: React.FC<{ attachment: NonNullable<Message['attachment'
   );
 };
 
-const CodeBlock: React.FC<any> = ({ node, inline, className, children, ...props }) => {
+const CodeBlock: React.FC<any> = ({ node, inline, className, children, theme, ...props }) => {
     const [isCopied, setIsCopied] = useState(false);
     const match = /language-(\w+)/.exec(className || '');
     const codeString = String(children).replace(/\n$/, '');
+    const isDark = theme === 'dark';
 
     const handleCopy = () => {
         navigator.clipboard.writeText(codeString).then(() => {
@@ -94,20 +96,20 @@ const CodeBlock: React.FC<any> = ({ node, inline, className, children, ...props 
 
     return (
         <div className="relative my-4 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm">
-            <div className="flex items-center justify-between px-4 py-2 bg-gray-800 dark:bg-gray-900 border-b border-gray-700">
-                <span className="text-xs text-gray-400 font-mono lowercase">{match ? match[1] : 'code'}</span>
+            <div className="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                <span className="text-xs text-gray-600 dark:text-gray-400 font-mono lowercase">{match ? match[1] : 'code'}</span>
                 <button 
                     onClick={handleCopy} 
-                    className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors text-xs uppercase font-medium tracking-wider"
+                    className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors text-xs uppercase font-medium tracking-wider"
                     aria-label="Copiar código"
                 >
                     {isCopied ? <CheckIcon /> : <CopyIcon />}
                     {isCopied ? 'Copiado!' : 'Copiar'}
                 </button>
             </div>
-            <div className="bg-[#1e1e1e]">
+            <div className="bg-white dark:bg-[#1e1e1e]">
                 <SyntaxHighlighter
-                    style={vscDarkPlus}
+                    style={isDark ? vscDarkPlus : oneLight}
                     language={match ? match[1] : 'text'}
                     PreTag="div"
                     customStyle={{ margin: 0, padding: '1.25rem', background: 'transparent', fontSize: '0.9rem', lineHeight: '1.5' }}
@@ -122,7 +124,7 @@ const CodeBlock: React.FC<any> = ({ node, inline, className, children, ...props 
 };
 
 // Using memo to prevent re-rendering of previous messages when new ones arrive
-export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ message, isLast, onEdit, onRegenerate }) => {
+export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ message, isLast, onEdit, onRegenerate, theme }) => {
   const [showSources, setShowSources] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -269,7 +271,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = memo(({ message, isLa
                           remarkPlugins={[RemarkGfm]}
                           rehypePlugins={[rehypeRaw]}
                           components={{
-                            code: CodeBlock,
+                            code: (props) => <CodeBlock {...props} theme={theme} />,
                           }}
                         >
                           {message.content}

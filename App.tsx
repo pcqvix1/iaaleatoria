@@ -9,7 +9,7 @@ import { LiveView } from './components/LiveView';
 import { generateStream, generateConversationTitle } from './services/geminiService';
 import { authService } from './services/authService';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { type Conversation, type Message, type Theme, type GroundingChunk, type User, type ModelId } from './types';
+import { type Conversation, type Message, type Theme, type GroundingChunk, type User, type ModelId, type VoiceName } from './types';
 import { type ChatInputHandles } from './components/ChatInput';
 import { ToastProvider, useToast } from './components/Toast';
 
@@ -25,6 +25,9 @@ const AppContent: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [view, setView] = useState<View>('chat');
   const [isLiveOpen, setIsLiveOpen] = useState(false);
+  
+  // Voice Preference
+  const [voiceName] = useLocalStorage<VoiceName>('gemini_voice_pref', 'Kore');
 
   const stopGenerationRef = useRef(false);
   const saveTimeoutRef = useRef<number | undefined>(undefined);
@@ -178,6 +181,35 @@ const AppContent: React.FC = () => {
     updateAndSaveConversations(prev => [newConversation, ...prev]);
     setCurrentConversationId(newId);
     return newId;
+  };
+
+  const handleLiveSessionEnd = async (transcriptMessages: Message[]) => {
+      setIsLiveOpen(false);
+      
+      if (transcriptMessages.length === 0) return;
+
+      // Create a new conversation for the live session
+      const newId = uuidv4();
+      const newConversation: Conversation = {
+        id: newId,
+        title: 'Conversa de Voz', // Temporary title
+        messages: transcriptMessages,
+        createdAt: Date.now(),
+        isTyping: false,
+        modelId: 'gemini-2.5-flash', // Using Gemini as it powered the live session
+      };
+
+      updateAndSaveConversations(prev => [newConversation, ...prev]);
+      setCurrentConversationId(newId);
+      setView('chat');
+      
+      // Generate Title in background
+      try {
+          const title = await generateConversationTitle(transcriptMessages, 'gemini-2.5-flash');
+          updateAndSaveConversations(prev => prev.map(c => c.id === newId ? { ...c, title } : c));
+      } catch (e) {
+          console.error("Failed to generate title for live session", e);
+      }
   };
   
   // Shared logic for processing stream
@@ -585,7 +617,13 @@ const AppContent: React.FC = () => {
             )}
           </main>
           
-          {isLiveOpen && <LiveView onClose={() => setIsLiveOpen(false)} />}
+          {isLiveOpen && (
+              <LiveView 
+                onClose={() => setIsLiveOpen(false)} 
+                voiceName={voiceName} 
+                onSessionEnd={handleLiveSessionEnd} 
+              />
+          )}
         </>
       ) : (
         <LoginPage 
